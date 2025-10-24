@@ -9,7 +9,7 @@ This document provides comprehensive guidance for AI assistants working on the m
 **Key Technologies**:
 - Python 3.12 with uv package manager
 - ML Libraries: scikit-learn, pandas, numpy, matplotlib
-- GCP: BigQuery, GCS, Cloud Run, Airflow Composer, Artifact Registry
+- GCP: BigQuery, GCS, Cloud Run Jobs, Cloud Scheduler, Cloud Functions, Artifact Registry
 - Infrastructure: Terraform
 - CI/CD: GitHub Actions
 - Containerization: Docker (multi-stage builds)
@@ -25,14 +25,22 @@ This document provides comprehensive guidance for AI assistants working on the m
 
 ### GCP Workflow
 - **Environments**: dev, staging, and prod (same GCP project, different resources)
-- **Orchestration**: Airflow Composer with model-specific DAGs
-- **Compute**: Cloud Run jobs running Docker containers
+- **Orchestration**: Cloud Scheduler triggers Cloud Run Jobs on a schedule
+- **Compute**: Cloud Run Jobs running Docker containers
+- **Model Registry**: Cloud Functions register models automatically on GCS upload
 - **CI/CD**: GitHub Actions with progressive deployment
 - **Data**: BigQuery tables managed by data engineering team (full table paths passed explicitly)
 
 ### Progressive Deployment Strategy
 ```
 dev (automatic on PR) → staging (manual) → prod (manual with confirmation)
+```
+
+### Deployment Flow
+```
+Jupyter → GCS → Model Registry (Cloud Function) → BigQuery
+                                ↓
+                        Cloud Scheduler → Cloud Run Job → BigQuery Predictions
 ```
 
 ## Repository Structure
@@ -47,12 +55,12 @@ mlsys/
 │   ├── vis.py               # Visualization helpers
 │   └── settings.py          # Configuration management
 ├── infra/                   # Terraform infrastructure
-├── dags/                    # Airflow DAGs (one per model)
 ├── notebooks/               # Jupyter notebooks for analysis
-├── scripts/                 # Deployment scripts
-│   ├── predict.py           # pull_predict_push() function
-│   └── model_registry/      # Cloud Function for model registry
-├── Dockerfile               # Container for Cloud Run jobs
+├── cloud_runs/              # Cloud Run Jobs (in Docker image)
+│   └── predict.py           # pull_predict_push() function
+├── cloud_funcs/             # Cloud Functions (deployed separately)
+│   └── model_registry/      # Model registration on GCS upload
+├── Dockerfile               # Container for Cloud Run Jobs
 ├── .pre-commit-config.yaml  # Pre-commit hooks
 └── .env.example             # Environment variable template
 ```
@@ -86,10 +94,10 @@ gh pr create --title "..." --body "..." # Create pull request
 ## Naming Conventions
 
 For each model (e.g., titanic-survival):
-- **DAG Name**: `titanic-survival-{env}` (e.g., `titanic-survival-dev`, `titanic-survival-staging`, `titanic-survival-prod`)
-- **GCS Path**: `gs://ml-models-{env}/titanic-survival/v1/`, `gs://ml-models-{env}/titanic-survival/v2/`, etc.
-- **CI/CD Job**: `deploy-titanic-survival-{env}`
-- **Service Account**: `titanic-survival-dag-sa-{env}@soufianesys.iam.gserviceaccount.com`
+- **Cloud Scheduler Job**: `{model-name}-predictions-{env}` (e.g., `titanic-predictions-dev`)
+- **Cloud Run Job**: `ml-predictions-{env}` (shared across models)
+- **GCS Path**: `gs://ml-models-{env}/{model-name}/v1/`, `gs://ml-models-{env}/{model-name}/v2/`, etc.
+- **Service Account**: `{model-name}-sa-{env}@soufianesys.iam.gserviceaccount.com`
 - **BigQuery Tables**: Managed by data engineering team, full paths passed explicitly (e.g., `project.dataset.table`)
 
 ## GCP Resources
@@ -99,18 +107,18 @@ All resources exist in the same GCP project (`soufianesys`) but are suffixed by 
 
 **dev**: Automatic deployment on PR to main
 - GCS bucket: `ml-models-dev`
-- Composer bucket: `<composer-bucket-dev>`
-- Service accounts: `*-dag-sa-dev@soufianesys.iam.gserviceaccount.com`
+- Cloud Run Job: `ml-predictions-dev`
+- Service accounts: `*-sa-dev@soufianesys.iam.gserviceaccount.com`
 
 **staging**: Manual deployment for pre-production testing
 - GCS bucket: `ml-models-staging`
-- Composer bucket: `<composer-bucket-staging>`
-- Service accounts: `*-dag-sa-staging@soufianesys.iam.gserviceaccount.com`
+- Cloud Run Job: `ml-predictions-staging`
+- Service accounts: `*-sa-staging@soufianesys.iam.gserviceaccount.com`
 
 **prod**: Manual deployment with confirmation
 - GCS bucket: `ml-models-prod`
-- Composer bucket: `<composer-bucket-prod>`
-- Service accounts: `*-dag-sa-prod@soufianesys.iam.gserviceaccount.com`
+- Cloud Run Job: `ml-predictions-prod`
+- Service accounts: `*-sa-prod@soufianesys.iam.gserviceaccount.com`
 
 ### Environment Variables
 See `.env.example` for comprehensive template. Key variables:
@@ -123,11 +131,6 @@ GCP_REGION=<your-gcp-region>
 GCS_BUCKET_MODELS_DEV=ml-models-dev
 GCS_BUCKET_MODELS_STAGING=ml-models-staging
 GCS_BUCKET_MODELS_PROD=ml-models-prod
-
-# Airflow Composer
-COMPOSER_BUCKET_DEV=<composer-bucket-dev>
-COMPOSER_BUCKET_STAGING=<composer-bucket-staging>
-COMPOSER_BUCKET_PROD=<composer-bucket-prod>
 
 # Note: BigQuery table paths are passed explicitly to functions
 # Example: bq_get("project_id.dataset.table")
@@ -178,17 +181,17 @@ Linting rules enabled:
 
 ## Key Scripts
 
-### `scripts/predict.py` - `pull_predict_push()`
-Core prediction pipeline that runs in Cloud Run jobs:
+### `cloud_runs/predict.py` - `pull_predict_push()`
+Core prediction pipeline that runs in Cloud Run Jobs:
 1. Pull data from BigQuery (using `bq_get()`)
 2. Pull model artifacts from GCS (using `gcs_get()`)
 3. Make predictions using loaded model
 4. Add metadata (timestamp, model name, model version)
 5. Push predictions back to BigQuery (using `bq_put()`)
 
-### `scripts/model_registry/` - Cloud Function
+### `cloud_funcs/model_registry/` - Cloud Function
 Event-based trigger on new object uploads to `ml-models-{dev/staging/prod}` buckets:
-- Registers model metadata in registry
+- Registers model metadata in BigQuery registry
 - Updates model inventory
 - Tracks: model name, version, upload timestamp, file size, uploader, environment
 - Stored in BigQuery table: `ml_registry.models`
@@ -200,13 +203,14 @@ Event-based trigger on new object uploads to `ml-models-{dev/staging/prod}` buck
 - **Version**: Managed via `.terraform-version` file
 - **Secrets**: Managed manually via `gcloud secrets` (NOT in Terraform)
 - **Variables**: Local dev uses `terraform.tfvars`, CI/CD uses command-line variables
-- **Modules**: Reusable module for service account creation
+- **Modules**: Reusable module for mlsys infrastructure
 
 Key resources:
 - GCS buckets (`ml-models-{env}`)
 - Artifact Registry repositories
 - Service accounts with IAM roles
-- Cloud Run jobs (via Docker images)
+- Cloud Run Jobs (via Docker images)
+- Cloud Scheduler jobs (trigger predictions)
 
 ### Docker Configuration
 Multi-stage build following best practices:
@@ -224,17 +228,16 @@ Multi-stage build following best practices:
 ## CI/CD Architecture
 
 ### Workflow Design
-Three-tier modular architecture:
+Modular architecture with reusable workflows:
 
 **Main Workflows** (trigger deployments):
 - `pr.yml`: Auto-deploy to dev on PR to main
 - `staging.yml`: Manual staging deployment
 - `prod.yml`: Manual prod deployment with confirmation
-- `deploy-dag.yml`: Manual DAG deployment
 
 **Reusable Components**:
-- `terraform-workflow.yml`: Parameterized Terraform operations
-- `docker-build.yml`: Parameterized Docker build/push
+- `terraform.yml`: Parameterized Terraform operations
+- `docker.yml`: Parameterized Docker build/push
 
 ### Code Change Detection
 Smart detection avoids unnecessary Docker builds:
@@ -242,7 +245,7 @@ Smart detection avoids unnecessary Docker builds:
 files: |
   src/**
   mlsys/**
-  scripts/**
+  cloud_runs/**
   pyproject.toml
   uv.lock
   Dockerfile
@@ -251,14 +254,14 @@ If only infra/docs/tests change, Terraform runs but Docker build is skipped.
 
 ### GitHub Secrets and Variables
 **Environment**: `gcp` (single environment for all deployments)
-- Secret: `SA` (GCP service account JSON key) <!-- pragma: allowlist secret -->
+- Secret: `SA` (GCP service account JSON key)  # pragma: allowlist secret
 - Variables: `GCP_PROJECT_ID`, `GCP_REGION`
 
 ## Model Versioning
 
 - **Versioning scheme**: Semantic versioning (v1, v2, v3, etc.)
 - **Storage**: GCS folder structure `gs://ml-models-{env}/{model-name}/v{N}/`
-- **Version propagation**: Passed to prediction script via DAG environment variables
+- **Version propagation**: Passed to prediction script via Cloud Scheduler job parameters
 - **Registry**: Cloud Function tracks all versions in BigQuery
 
 ## Best Practices
@@ -277,7 +280,7 @@ If only infra/docs/tests change, Terraform runs but Docker build is skipped.
 
 ### Notebook Development
 - Use notebooks for EDA and model experimentation only
-- Keep production code in `src/mlsys/` and `scripts/`
+- Keep production code in `src/mlsys/` and `cloud_runs/`
 - Use nbstripout to avoid committing metadata
 - Follow notebook naming convention (see `notebooks/README.md`)
 
@@ -293,11 +296,10 @@ If only infra/docs/tests change, Terraform runs but Docker build is skipped.
 1. Create Jupyter notebook for model development
 2. Train and evaluate model using latest data from BigQuery
 3. Upload model artifacts to GCS: `gs://ml-models-dev/{model-name}/v1/`
-4. Create Airflow DAG in `dags/{model_name}_dag.py`
-5. Add Terraform service account in `infra/service_accounts.tf`
-6. Update CI/CD workflows if needed
-7. Test in dev environment
-8. Promote to staging, then prod
+4. Create Cloud Scheduler job in Terraform (in `infra/modules/mlsys/cloud_scheduler.tf`)
+5. Add service account in Terraform if model-specific permissions needed
+6. Test in dev environment
+7. Promote to staging, then prod
 
 ### Deploying Infrastructure Changes
 1. Make changes in `infra/` directory
@@ -341,7 +343,8 @@ git commit -m "Add <package-name> dependency"
 
 ## References
 
-- [PROJECT_PLAN.md](./PROJECT_PLAN.md) - Detailed implementation plan with 17 PRs
 - [README.md](./README.md) - Project overview and quick start
+- [notebooks/README.md](./notebooks/README.md) - Notebook development guide
+- [cloud_funcs/model_registry/README.md](./cloud_funcs/model_registry/README.md) - Model registry documentation
 - [pyproject.toml](./pyproject.toml) - Package configuration
 - [.pre-commit-config.yaml](./.pre-commit-config.yaml) - Code quality hooks
