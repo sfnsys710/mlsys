@@ -8,6 +8,7 @@ This document provides comprehensive guidance for AI assistants working on the m
 
 **Key Technologies**:
 - Python 3.12 with uv package manager
+- ML Libraries: scikit-learn, pandas, numpy, matplotlib
 - GCP: BigQuery, GCS, Cloud Run, Airflow Composer, Artifact Registry
 - Infrastructure: Terraform
 - CI/CD: GitHub Actions

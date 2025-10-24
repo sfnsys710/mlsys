@@ -36,7 +36,7 @@ mlsys/
 ## Documentation
 
 - [PROJECT_PLAN.md](./PROJECT_PLAN.md) - Detailed implementation plan with 17 PRs
-- [CLAUDE.md](./CLAUDE.md) - AI assistant guidance (coming soon)
+- [CLAUDE.md](./CLAUDE.md) - AI assistant guidance
 
 ## Environments
 
@@ -46,4 +46,4 @@ mlsys/
 
 ## Status
 
-🚧 Initial setup in progress - PR #1: Package structure complete
+🚧 Initial setup in progress - Completed PRs #1-4 (package structure, pre-commit hooks, documentation, settings)
