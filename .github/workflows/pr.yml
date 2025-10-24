@@ -1,0 +1,76 @@
+name: PR - Dev Deployment
+
+on:
+  pull_request:
+    branches:
+      - main
+
+concurrency:
+  group: pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  pre-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Run pre-commit hooks
+        run: uv run pre-commit run --all-files
+
+  check-code-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      code_changed: ${{ steps.filter.outputs.code }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check for code changes
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            code:
+              - 'src/**'
+              - 'mlsys/**'
+              - 'scripts/**'
+              - 'pyproject.toml'
+              - 'uv.lock'
+              - 'Dockerfile'
+              - '.dockerignore'
+
+  terraform-dev:
+    needs: pre-commit
+    uses: ./.github/workflows/terraform-workflow.yml
+    with:
+      environment: dev
+      terraform_action: apply
+      gcp_region: ${{ vars.GCP_REGION }}
+      gcp_project_id: ${{ vars.GCP_PROJECT_ID }}
+    secrets:
+      gcp_sa_key: ${{ secrets.SA }}
+
+  docker-dev:
+    needs: [check-code-changes, terraform-dev]
+    if: needs.check-code-changes.outputs.code_changed == 'true'
+    uses: ./.github/workflows/docker-build.yml
+    with:
+      environment: dev
+      image_tag: ${{ github.sha }}
+      gcp_region: ${{ vars.GCP_REGION }}
+      gcp_project_id: ${{ vars.GCP_PROJECT_ID }}
+    secrets:
+      gcp_sa_key: ${{ secrets.SA }}
