@@ -42,11 +42,3 @@ jobs:
       gcp_project_id: ${{ vars.GCP_PROJECT_ID }}
     secrets:
       gcp_sa_key: ${{ secrets.SA }}
-
-  airflow-staging:
-    needs: terraform-staging
-    uses: ./.github/workflows/airflow.yml
-    with:
-      environment: staging
-    secrets:
-      gcp_sa_key: ${{ secrets.SA }}
