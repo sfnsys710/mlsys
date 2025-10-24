@@ -12,6 +12,8 @@ dependencies = [
     "numpy>=2.3.4",
     "google-cloud-bigquery>=3.38.0",
     "pyarrow>=22.0.0",
+    "google-cloud-storage>=3.4.1",
+    "joblib>=1.5.2",
 ]
 
 [build-system]
