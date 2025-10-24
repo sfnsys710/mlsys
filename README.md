@@ -22,9 +22,10 @@ uv run pre-commit run --all-files
 ```
 mlsys/
 ├── src/mlsys/          # Main Python package
-│   ├── bq/             # BigQuery I/O utilities
-│   ├── gcs/            # GCS I/O utilities
-│   └── vis/            # Visualization helpers
+│   ├── bq.py           # BigQuery I/O utilities
+│   ├── gcs.py          # GCS I/O utilities
+│   ├── vis.py          # Visualization helpers
+│   └── settings.py     # Configuration management
 ├── dags/               # Airflow DAGs
 ├── notebooks/          # Jupyter notebooks for analysis
 ├── scripts/            # Deployment and prediction scripts
