@@ -1,0 +1,7 @@
+# Example terraform.tfvars for local development
+# Copy this file to envs/{dev,staging,prod}/terraform.tfvars and fill in your values
+# NOTE: terraform.tfvars is gitignored and should never be committed
+
+# GCP Project Configuration
+project_id = "soufianesys"
+region     = "us-central1"
