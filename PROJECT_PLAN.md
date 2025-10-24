@@ -30,10 +30,10 @@ Repository for machine learning development in Jupyter notebooks and deployment 
 mlsys/
 ├── .github/
 │   └── workflows/           # CI/CD workflows
-├── mlsys/                   # Main Python package (managed by uv)
-│   ├── vis/                 # Visualization helpers
-│   ├── bq/                  # BigQuery I/O (bq_get, bq_put)
-│   ├── gcs/                 # GCS I/O (gcs_get, gcs_put)
+├── src/mlsys/               # Main Python package (managed by uv)
+│   ├── bq.py                # BigQuery I/O (bq_get, bq_put)
+│   ├── gcs.py               # GCS I/O (gcs_get, gcs_put)
+│   ├── vis.py               # Visualization helpers
 │   └── settings.py          # Configuration management
 ├── infra/                   # Terraform infrastructure
 ├── dags/                    # Airflow DAGs (one per model)
@@ -175,8 +175,7 @@ COMPOSER_BUCKET_PROD=<composer-bucket-prod>
 #### PR #5: Add BigQuery I/O Utilities
 **Branch**: `add-bigquery-io`
 **Files**:
-- `mlsys/bq/__init__.py`
-- `mlsys/bq/io.py` (bq_get, bq_put functions)
+- `src/mlsys/bq.py` (bq_get, bq_put functions)
 - Updated `pyproject.toml` (add google-cloud-bigquery, pandas, pyarrow)
 
 **Functions**:
@@ -190,9 +189,8 @@ COMPOSER_BUCKET_PROD=<composer-bucket-prod>
 #### PR #6: Add GCS I/O Utilities
 **Branch**: `add-gcs-io`
 **Files**:
-- `mlsys/gcs/__init__.py`
-- `mlsys/gcs/io.py` (gcs_get, gcs_put functions)
-- Updated `pyproject.toml` (add google-cloud-storage, joblib, pickle)
+- `src/mlsys/gcs.py` (gcs_get, gcs_put functions)
+- Updated `pyproject.toml` (add google-cloud-storage, joblib)
 
 **Functions**:
 - `gcs_get(bucket_name, blob_path)`: Download model artifacts
@@ -205,8 +203,7 @@ COMPOSER_BUCKET_PROD=<composer-bucket-prod>
 #### PR #7: Add Visualization Helpers
 **Branch**: `add-visualization-helpers`
 **Files**:
-- `mlsys/vis/__init__.py`
-- `mlsys/vis/plots.py` (common plotting functions)
+- `src/mlsys/vis.py` (common plotting functions)
 - Updated `pyproject.toml` (add matplotlib, seaborn, plotly)
 
 **Commit**: "Add visualization helper utilities"
