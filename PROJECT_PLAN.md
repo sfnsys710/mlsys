@@ -142,9 +142,16 @@ uv run pre-commit run ruff --all-files # Run specific hook
 #### PR #4: Add Settings and Environment Config
 **Branch**: `add-settings-environment`
 **Files**:
-- `mlsys/settings.py` (Pydantic settings with GCP config)
+- `src/mlsys/settings.py` (simple global variables with GCP config)
 - `.env.example` (comprehensive template with all required vars)
-- Updated `pyproject.toml` (add python-dotenv, pydantic-settings)
+- Updated `pyproject.toml` (add python-dotenv and core ML libraries)
+
+**Dependencies Added**:
+- python-dotenv>=1.0.0
+- scikit-learn>=1.7.2
+- pandas>=2.3.3
+- matplotlib>=3.10.7
+- numpy>=2.3.4
 
 **Environment Variables**:
 ```bash
