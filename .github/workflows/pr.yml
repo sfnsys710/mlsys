@@ -35,6 +35,7 @@ jobs:
     outputs:
       infra_changed: ${{ steps.filter.outputs.infra }}
       code_changed: ${{ steps.filter.outputs.code }}
+      cloud_funcs_changed: ${{ steps.filter.outputs.cloud_funcs }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -49,11 +50,13 @@ jobs:
             code:
               - 'src/**'
               - 'mlsys/**'
-              - 'scripts/**'
+              - 'cloud_runs/**'
               - 'pyproject.toml'
               - 'uv.lock'
               - 'Dockerfile'
               - '.dockerignore'
+            cloud_funcs:
+              - 'cloud_funcs/**'
 
   terraform-dev:
     needs: [pre-commit, check-changes]
@@ -79,5 +82,17 @@ jobs:
       image_tag: ${{ github.sha }}
       gcp_region: ${{ vars.GCP_REGION }}
       gcp_project_id: ${{ vars.GCP_PROJECT_ID }}
+    secrets:
+      gcp_sa_key: ${{ secrets.SA }}
+
+  cloud-functions-dev:
+    needs: [check-changes, terraform-dev]
+    if: |
+      always() &&
+      needs.check-changes.outputs.cloud_funcs_changed == 'true' &&
+      (needs.terraform-dev.result == 'success' || needs.terraform-dev.result == 'skipped')
+    uses: ./.github/workflows/cloud_functions.yml
+    with:
+      environment: dev
     secrets:
       gcp_sa_key: ${{ secrets.SA }}
