@@ -13,7 +13,7 @@ This document provides comprehensive guidance for AI assistants working on the m
 - CI/CD: GitHub Actions
 - Containerization: Docker (multi-stage builds)
 
-**GCP Project**: `shoufianesys` (single project, resources suffixed with `-dev`, `-staging`, `-prod`)
+**GCP Project**: `soufianesys` (single project, resources suffixed with `-dev`, `-staging`, `-prod`)
 
 ## Architecture
 
@@ -88,35 +88,35 @@ For each model (e.g., titanic-survival):
 - **DAG Name**: `titanic-survival-{env}` (e.g., `titanic-survival-dev`, `titanic-survival-staging`, `titanic-survival-prod`)
 - **GCS Path**: `gs://ml-models-{env}/titanic-survival/v1/`, `gs://ml-models-{env}/titanic-survival/v2/`, etc.
 - **CI/CD Job**: `deploy-titanic-survival-{env}`
-- **Service Account**: `titanic-survival-dag-sa-{env}@shoufianesys.iam.gserviceaccount.com`
+- **Service Account**: `titanic-survival-dag-sa-{env}@soufianesys.iam.gserviceaccount.com`
 - **BigQuery Tables**: Managed by data engineering team, full paths passed explicitly (e.g., `project.dataset.table`)
 
 ## GCP Resources
 
 ### Environments
-All resources exist in the same GCP project (`shoufianesys`) but are suffixed by environment:
+All resources exist in the same GCP project (`soufianesys`) but are suffixed by environment:
 
 **dev**: Automatic deployment on PR to main
 - GCS bucket: `ml-models-dev`
 - Composer bucket: `<composer-bucket-dev>`
-- Service accounts: `*-dag-sa-dev@shoufianesys.iam.gserviceaccount.com`
+- Service accounts: `*-dag-sa-dev@soufianesys.iam.gserviceaccount.com`
 
 **staging**: Manual deployment for pre-production testing
 - GCS bucket: `ml-models-staging`
 - Composer bucket: `<composer-bucket-staging>`
-- Service accounts: `*-dag-sa-staging@shoufianesys.iam.gserviceaccount.com`
+- Service accounts: `*-dag-sa-staging@soufianesys.iam.gserviceaccount.com`
 
 **prod**: Manual deployment with confirmation
 - GCS bucket: `ml-models-prod`
 - Composer bucket: `<composer-bucket-prod>`
-- Service accounts: `*-dag-sa-prod@shoufianesys.iam.gserviceaccount.com`
+- Service accounts: `*-dag-sa-prod@soufianesys.iam.gserviceaccount.com`
 
 ### Environment Variables
 See `.env.example` for comprehensive template. Key variables:
 ```bash
-# GCP Configuration
-GCP_PROJECT_ID=shoufianesys
-GCP_REGION=us-central1
+# GCP Configuration (set via GitHub secrets/variables - NOT committed)
+GCP_PROJECT_ID=<your-gcp-project>
+GCP_REGION=<your-gcp-region>
 
 # GCS Model Buckets
 GCS_BUCKET_MODELS_DEV=ml-models-dev
