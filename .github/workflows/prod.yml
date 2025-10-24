@@ -59,3 +59,11 @@ jobs:
       gcp_project_id: ${{ vars.GCP_PROJECT_ID }}
     secrets:
       gcp_sa_key: ${{ secrets.SA }}
+
+  cloud-functions-prod:
+    needs: [validate-confirmation, terraform-prod]
+    uses: ./.github/workflows/cloud_functions.yml
+    with:
+      environment: prod
+    secrets:
+      gcp_sa_key: ${{ secrets.SA }}

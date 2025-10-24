@@ -1,0 +1,52 @@
+name: Deploy Cloud Functions
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: 'Environment to deploy to (dev, staging, prod)'
+        required: true
+        type: string
+    secrets:
+      gcp_sa_key:
+        description: 'GCP service account key JSON'
+        required: true
+
+jobs:
+  deploy-cloud-functions:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.gcp_sa_key }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Deploy Model Registry Cloud Function
+        working-directory: cloud_funcs/model_registry
+        run: |
+          gcloud functions deploy model-registry-${{ inputs.environment }} \
+            --gen2 \
+            --runtime=python312 \
+            --region=${{ vars.GCP_REGION }} \
+            --source=. \
+            --entry-point=register_model \
+            --trigger-event-filters="type=google.cloud.storage.object.v1.finalized" \
+            --trigger-event-filters="bucket=mlsys-models-${{ inputs.environment }}" \
+            --set-env-vars GCP_PROJECT_ID=${{ vars.GCP_PROJECT_ID }} \
+            --service-account=model-registry-sa-${{ inputs.environment }}@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com \
+            --max-instances=5 \
+            --memory=256MB \
+            --timeout=60s
+
+      - name: Verify deployment
+        run: |
+          echo "Cloud Function deployed successfully to ${{ inputs.environment }}"
+          gcloud functions describe model-registry-${{ inputs.environment }} \
+            --region=${{ vars.GCP_REGION }} \
+            --gen2

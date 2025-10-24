@@ -42,3 +42,11 @@ jobs:
       gcp_project_id: ${{ vars.GCP_PROJECT_ID }}
     secrets:
       gcp_sa_key: ${{ secrets.SA }}
+
+  cloud-functions-staging:
+    needs: terraform-staging
+    uses: ./.github/workflows/cloud_functions.yml
+    with:
+      environment: staging
+    secrets:
+      gcp_sa_key: ${{ secrets.SA }}
