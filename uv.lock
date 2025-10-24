@@ -43,17 +43,15 @@ name = "mlsys"
 version = "0.1.0"
 source = { editable = "." }
 
-[package.optional-dependencies]
-dev = [
+[package.dev-dependencies]
+pre-commit = [
     { name = "pre-commit" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "pre-commit", marker = "extra == 'dev'", specifier = ">=3.6.0" }]
-provides-extras = ["dev"]
 
 [package.metadata.requires-dev]
-dev = []
+pre-commit = [{ name = "pre-commit", specifier = ">=4.3.0" }]
 
 [[package]]
 name = "nodeenv"
