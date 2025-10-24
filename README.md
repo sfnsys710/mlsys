@@ -8,6 +8,96 @@ Repository for machine learning development and production deployment with progr
 
 **Architecture**: Develop models in Jupyter notebooks, deploy predictions as Cloud Run Jobs, and schedule them with Cloud Scheduler.
 
+## First-Time Setup
+
+⚠️ **One-time manual setup required** before using this project.
+
+### Prerequisites
+
+- GCP Project created (e.g., `soufianesys`)
+- `gcloud` CLI installed and authenticated
+- Owner or Editor role on the GCP project
+
+### 1. Enable Required APIs
+
+```bash
+# Enable all required GCP APIs
+gcloud services enable compute.googleapis.com
+gcloud services enable storage.googleapis.com
+gcloud services enable bigquery.googleapis.com
+gcloud services enable artifactregistry.googleapis.com
+gcloud services enable run.googleapis.com
+gcloud services enable cloudscheduler.googleapis.com
+gcloud services enable cloudfunctions.googleapis.com
+gcloud services enable cloudbuild.googleapis.com
+gcloud services enable eventarc.googleapis.com
+```
+
+### 2. Create Terraform State Buckets
+
+Terraform needs GCS buckets to store state (one per environment):
+
+```bash
+# Create state buckets
+gcloud storage buckets create gs://mlsys-terraform-state-dev --location=us-central1
+gcloud storage buckets create gs://mlsys-terraform-state-staging --location=us-central1
+gcloud storage buckets create gs://mlsys-terraform-state-prod --location=us-central1
+
+# Enable versioning for safety
+gcloud storage buckets update gs://mlsys-terraform-state-dev --versioning
+gcloud storage buckets update gs://mlsys-terraform-state-staging --versioning
+gcloud storage buckets update gs://mlsys-terraform-state-prod --versioning
+```
+
+### 3. Create GitHub Actions Service Account
+
+Create a service account for GitHub Actions to deploy resources:
+
+```bash
+# Create service account
+gcloud iam service-accounts create github-actions \
+  --display-name="GitHub Actions Service Account"
+
+# Grant necessary roles
+gcloud projects add-iam-policy-binding YOUR_PROJECT_ID \
+  --member="serviceAccount:github-actions@YOUR_PROJECT_ID.iam.gserviceaccount.com" \
+  --role="roles/owner"
+
+# Generate key (store in GitHub Secrets as "SA")
+gcloud iam service-accounts keys create github-actions-key.json \
+  --iam-account=github-actions@YOUR_PROJECT_ID.iam.gserviceaccount.com
+```
+
+### 4. Configure GitHub Secrets and Variables
+
+In your GitHub repository settings:
+
+**Secrets** (Settings → Secrets and variables → Actions → Secrets):
+- `SA`: Contents of `github-actions-key.json`
+
+**Variables** (Settings → Secrets and variables → Actions → Variables):
+- `GCP_PROJECT_ID`: Your GCP project ID (e.g., `soufianesys`)
+- `GCP_REGION`: Your GCP region (e.g., `us-central1`)
+
+**Environment**: Create an environment named `gcp` in repository settings
+
+### 5. Initialize Terraform
+
+```bash
+# Initialize Terraform for dev environment
+cd infra/envs/dev
+terraform init -backend-config="bucket=mlsys-terraform-state-dev"
+
+# Repeat for staging and prod
+cd ../staging
+terraform init -backend-config="bucket=mlsys-terraform-state-staging"
+
+cd ../prod
+terraform init -backend-config="bucket=mlsys-terraform-state-prod"
+```
+
+✅ **Setup complete!** You can now use the Quick Start guide below.
+
 ## Quick Start
 
 ```bash
