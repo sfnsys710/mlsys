@@ -1,6 +1,6 @@
 [project]
 name = "mlsys"
-version = "0.1.1"
+version = "0.1.2"
 description = "ML System for training models in Jupyter and deploying to GCP with scheduled predictions"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -10,6 +10,8 @@ dependencies = [
     "pandas>=2.3.3",
     "matplotlib>=3.10.7",
     "numpy>=2.3.4",
+    "google-cloud-bigquery>=3.38.0",
+    "pyarrow>=22.0.0",
 ]
 
 [build-system]
