@@ -30,7 +30,6 @@ module "mlsys" {
   region                  = var.region
   environment             = "dev"
   bucket_models_name      = "mlsys-models-dev"
-  bucket_composer_name    = "mlsys-composer-dev"
   artifact_registry_name  = "mlsys-dev"
   bigquery_dataset_name   = "ml_registry_dev"
   model_registry_sa_name  = "model-registry-sa-dev"
@@ -53,10 +52,6 @@ output "models_bucket_name" {
   value = module.mlsys.models_bucket_name
 }
 
-output "composer_bucket_name" {
-  value = module.mlsys.composer_bucket_name
-}
-
 output "artifact_registry_name" {
   value = module.mlsys.artifact_registry_name
 }
@@ -67,4 +62,20 @@ output "bigquery_dataset_id" {
 
 output "model_registry_sa_email" {
   value = module.mlsys.model_registry_sa_email
+}
+
+output "cloud_run_job_name" {
+  value = module.mlsys.cloud_run_job_name
+}
+
+output "predictions_sa_email" {
+  value = module.mlsys.predictions_sa_email
+}
+
+output "scheduler_sa_email" {
+  value = module.mlsys.scheduler_sa_email
+}
+
+output "titanic_scheduler_name" {
+  value = module.mlsys.titanic_scheduler_name
 }
