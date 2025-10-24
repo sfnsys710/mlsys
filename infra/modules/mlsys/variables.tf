@@ -24,11 +24,6 @@ variable "bucket_models_name" {
   type        = string
 }
 
-variable "bucket_composer_name" {
-  description = "GCS bucket name for Airflow Composer DAGs"
-  type        = string
-}
-
 variable "artifact_registry_name" {
   description = "Artifact Registry repository name for Docker images"
   type        = string

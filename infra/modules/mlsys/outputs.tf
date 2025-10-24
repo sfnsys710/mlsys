@@ -10,16 +10,6 @@ output "models_bucket_url" {
   value       = google_storage_bucket.ml_models.url
 }
 
-output "composer_bucket_name" {
-  description = "GCS bucket name for Composer DAGs"
-  value       = google_storage_bucket.composer_dags.name
-}
-
-output "composer_bucket_url" {
-  description = "GCS bucket URL for Composer DAGs"
-  value       = google_storage_bucket.composer_dags.url
-}
-
 output "artifact_registry_id" {
   description = "Artifact Registry repository ID"
   value       = google_artifact_registry_repository.mlsys_images.id
@@ -43,4 +33,24 @@ output "model_registry_sa_email" {
 output "model_registry_table_id" {
   description = "BigQuery models table ID"
   value       = google_bigquery_table.models.table_id
+}
+
+output "cloud_run_job_name" {
+  description = "Cloud Run Job name for predictions"
+  value       = google_cloud_run_v2_job.ml_predictions.name
+}
+
+output "predictions_sa_email" {
+  description = "Predictions service account email"
+  value       = google_service_account.predictions.email
+}
+
+output "scheduler_sa_email" {
+  description = "Cloud Scheduler service account email"
+  value       = google_service_account.scheduler.email
+}
+
+output "titanic_scheduler_name" {
+  description = "Titanic predictions Cloud Scheduler job name"
+  value       = google_cloud_scheduler_job.titanic_predictions.name
 }

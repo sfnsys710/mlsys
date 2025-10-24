@@ -30,7 +30,7 @@ module "mlsys" {
   region                  = var.region
   environment             = "staging"
   bucket_models_name      = "mlsys-models-staging"
-  bucket_composer_name    = "mlsys-composer-staging"
+
   artifact_registry_name  = "mlsys-staging"
   bigquery_dataset_name   = "ml_registry_staging"
   model_registry_sa_name  = "model-registry-sa-staging"
