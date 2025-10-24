@@ -9,7 +9,7 @@ concurrency:
 
 jobs:
   terraform-staging:
-    uses: ./.github/workflows/terraform-workflow.yml
+    uses: ./.github/workflows/terraform.yml
     with:
       environment: staging
       terraform_action: apply
@@ -34,11 +34,19 @@ jobs:
 
   docker-staging:
     needs: [terraform-staging, get-version]
-    uses: ./.github/workflows/docker-build.yml
+    uses: ./.github/workflows/docker.yml
     with:
       environment: staging
       image_tag: ${{ needs.get-version.outputs.version }}
       gcp_region: ${{ vars.GCP_REGION }}
       gcp_project_id: ${{ vars.GCP_PROJECT_ID }}
+    secrets:
+      gcp_sa_key: ${{ secrets.SA }}
+
+  airflow-staging:
+    needs: terraform-staging
+    uses: ./.github/workflows/airflow.yml
+    with:
+      environment: staging
     secrets:
       gcp_sa_key: ${{ secrets.SA }}

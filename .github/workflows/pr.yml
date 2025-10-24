@@ -30,19 +30,23 @@ jobs:
       - name: Run pre-commit hooks
         run: uv run pre-commit run --all-files
 
-  check-code-changes:
+  check-changes:
     runs-on: ubuntu-latest
     outputs:
+      infra_changed: ${{ steps.filter.outputs.infra }}
       code_changed: ${{ steps.filter.outputs.code }}
+      dags_changed: ${{ steps.filter.outputs.dags }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Check for code changes
+      - name: Check for changes
         uses: dorny/paths-filter@v3
         id: filter
         with:
           filters: |
+            infra:
+              - 'infra/**'
             code:
               - 'src/**'
               - 'mlsys/**'
@@ -51,10 +55,13 @@ jobs:
               - 'uv.lock'
               - 'Dockerfile'
               - '.dockerignore'
+            dags:
+              - 'dags/**'
 
   terraform-dev:
-    needs: pre-commit
-    uses: ./.github/workflows/terraform-workflow.yml
+    needs: [pre-commit, check-changes]
+    if: needs.check-changes.outputs.infra_changed == 'true'
+    uses: ./.github/workflows/terraform.yml
     with:
       environment: dev
       terraform_action: apply
@@ -64,13 +71,28 @@ jobs:
       gcp_sa_key: ${{ secrets.SA }}
 
   docker-dev:
-    needs: [check-code-changes, terraform-dev]
-    if: needs.check-code-changes.outputs.code_changed == 'true'
-    uses: ./.github/workflows/docker-build.yml
+    needs: [check-changes, terraform-dev]
+    if: |
+      always() &&
+      needs.check-changes.outputs.code_changed == 'true' &&
+      (needs.terraform-dev.result == 'success' || needs.terraform-dev.result == 'skipped')
+    uses: ./.github/workflows/docker.yml
     with:
       environment: dev
       image_tag: ${{ github.sha }}
       gcp_region: ${{ vars.GCP_REGION }}
       gcp_project_id: ${{ vars.GCP_PROJECT_ID }}
+    secrets:
+      gcp_sa_key: ${{ secrets.SA }}
+
+  airflow-dev:
+    needs: [check-changes, terraform-dev]
+    if: |
+      always() &&
+      needs.check-changes.outputs.dags_changed == 'true' &&
+      (needs.terraform-dev.result == 'success' || needs.terraform-dev.result == 'skipped')
+    uses: ./.github/workflows/airflow.yml
+    with:
+      environment: dev
     secrets:
       gcp_sa_key: ${{ secrets.SA }}

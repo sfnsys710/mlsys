@@ -25,7 +25,7 @@ jobs:
 
   terraform-prod:
     needs: validate-confirmation
-    uses: ./.github/workflows/terraform-workflow.yml
+    uses: ./.github/workflows/terraform.yml
     with:
       environment: prod
       terraform_action: apply
@@ -51,11 +51,19 @@ jobs:
 
   docker-prod:
     needs: [terraform-prod, get-version]
-    uses: ./.github/workflows/docker-build.yml
+    uses: ./.github/workflows/docker.yml
     with:
       environment: prod
       image_tag: ${{ needs.get-version.outputs.version }}
       gcp_region: ${{ vars.GCP_REGION }}
       gcp_project_id: ${{ vars.GCP_PROJECT_ID }}
+    secrets:
+      gcp_sa_key: ${{ secrets.SA }}
+
+  airflow-prod:
+    needs: [validate-confirmation, terraform-prod]
+    uses: ./.github/workflows/airflow.yml
+    with:
+      environment: prod
     secrets:
       gcp_sa_key: ${{ secrets.SA }}
