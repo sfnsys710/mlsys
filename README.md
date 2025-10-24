@@ -1,10 +1,12 @@
 # mlsys
 
-ML System for training models in Jupyter and deploying to GCP with scheduled predictions.
+ML System for training models in Jupyter and deploying to GCP with scheduled predictions using Cloud Scheduler and Cloud Run Jobs.
 
 ## Overview
 
 Repository for machine learning development and production deployment with progressive deployment strategy across dev, staging, and prod environments.
+
+**Architecture**: Develop models in Jupyter notebooks, deploy predictions as Cloud Run Jobs, and schedule them with Cloud Scheduler.
 
 ## Quick Start
 
@@ -29,11 +31,34 @@ mlsys/
 │   ├── gcs.py          # GCS I/O utilities
 │   ├── vis.py          # Visualization helpers
 │   └── settings.py     # Configuration management
-├── dags/               # Airflow DAGs
-├── notebooks/          # Jupyter notebooks for analysis
-├── scripts/            # Deployment and prediction scripts
+├── notebooks/          # Jupyter notebooks for model development
+├── cloud_runs/         # Cloud Run Jobs (packaged in Docker)
+│   └── predict.py      # Prediction pipeline script
+├── cloud_funcs/        # Cloud Functions (deployed separately)
+│   └── model_registry/ # Model registration on GCS upload
 ├── infra/              # Terraform infrastructure
 └── .github/            # CI/CD workflows
+```
+
+## Architecture
+
+### Local Development
+1. Download data from BigQuery using `bq_get()`
+2. Perform EDA and train models in Jupyter notebooks
+3. Upload model artifacts to GCS using `gcs_put()`
+
+### GCP Production
+- **Cloud Scheduler**: Triggers predictions on a schedule (daily, hourly, etc.)
+- **Cloud Run Jobs**: Executes prediction pipeline (pull data → predict → save results)
+- **Cloud Functions**: Registers model metadata when artifacts are uploaded to GCS
+- **BigQuery**: Stores training data, predictions, and model registry
+- **GCS**: Stores model artifacts with versioning (v1, v2, etc.)
+
+### Deployment Flow
+```
+Jupyter → GCS → Model Registry (Cloud Function) → BigQuery
+                                ↓
+                        Cloud Scheduler → Cloud Run Job → BigQuery Predictions
 ```
 
 ## Notebook Development
@@ -78,8 +103,11 @@ See `notebooks/README.md` for detailed guidance and `notebooks/titanic-survival-
 
 ## Status
 
-✅ **Phase 1-5**: Foundation, Core Utilities, Containerization, Core Scripts
-✅ **PR #10**: Model Registry Cloud Function
-✅ **PR #11**: Terraform Infrastructure (modular architecture)
-✅ **PR #13-15**: CI/CD Workflows (merged, with smart change detection)
-🚧 **PR #17**: Application Layer - Notebooks (in progress)
+✅ **Complete**: Project setup finished with all core components
+- Foundation: Package structure, pre-commit hooks, settings
+- Core utilities: BigQuery, GCS, visualization helpers
+- Infrastructure: Terraform modules for all environments
+- CI/CD: Docker builds, Terraform deployments
+- Application layer: Jupyter notebooks with Titanic example
+- Model registry: Cloud Function for automatic registration
+- Architecture: Cloud Scheduler + Cloud Run Jobs (simplified from Airflow)
