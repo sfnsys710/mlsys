@@ -6,7 +6,7 @@ Repository for machine learning development in Jupyter notebooks and deployment 
 
 ### Key Configuration
 - **Python Version**: 3.12
-- **GCP Project**: shoufianesys (same project, resources suffixed with -dev/-staging/-prod)
+- **GCP Project**: soufianesys (same project, resources suffixed with -dev/-staging/-prod)
 - **Example Model**: titanic-survival
 - **Package Manager**: uv
 - **Environments**: dev, staging, prod
@@ -52,7 +52,7 @@ For each model (e.g., titanic-survival):
 - **DAG Name**: `titanic-survival-{env}` (e.g., `titanic-survival-dev`, `titanic-survival-staging`, `titanic-survival-prod`)
 - **GCS Path**: `gs://ml-models-{env}/titanic-survival/v1/`, `gs://ml-models-{env}/titanic-survival/v2/`, etc.
 - **CI/CD Job**: `deploy-titanic-survival-{env}`
-- **Service Account**: `titanic-survival-dag-sa-{env}@shoufianesys.iam.gserviceaccount.com`
+- **Service Account**: `titanic-survival-dag-sa-{env}@soufianesys.iam.gserviceaccount.com`
 - **BigQuery Tables**: Managed by data engineering team, full paths passed explicitly (e.g., `project.dataset.table`)
 
 ## Key Scripts
@@ -148,9 +148,9 @@ uv run pre-commit run ruff --all-files # Run specific hook
 
 **Environment Variables**:
 ```bash
-# GCP Configuration
-GCP_PROJECT_ID=shoufianesys
-GCP_REGION=us-central1
+# GCP Configuration (set via GitHub secrets/variables - NOT committed to repo)
+GCP_PROJECT_ID=<your-gcp-project>
+GCP_REGION=<your-gcp-region>
 
 # GCS Model Buckets
 GCS_BUCKET_MODELS_DEV=ml-models-dev
