@@ -1,0 +1,61 @@
+name: Production Deployment
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: 'Type "production" to confirm deployment'
+        required: true
+        type: string
+
+concurrency:
+  group: production-deployment
+  cancel-in-progress: false
+
+jobs:
+  validate-confirmation:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate confirmation
+        run: |
+          if [ "${{ github.event.inputs.confirmation }}" != "production" ]; then
+            echo "Error: You must type 'production' to confirm deployment"
+            exit 1
+          fi
+
+  terraform-prod:
+    needs: validate-confirmation
+    uses: ./.github/workflows/terraform-workflow.yml
+    with:
+      environment: prod
+      terraform_action: apply
+      gcp_region: ${{ vars.GCP_REGION }}
+      gcp_project_id: ${{ vars.GCP_PROJECT_ID }}
+    secrets:
+      gcp_sa_key: ${{ secrets.SA }}
+
+  get-version:
+    needs: validate-confirmation
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.extract_version.outputs.version }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Extract version from pyproject.toml
+        id: extract_version
+        run: |
+          VERSION=$(grep '^version = ' pyproject.toml | sed 's/version = "\(.*\)"/\1/')
+          echo "version=v$VERSION" >> $GITHUB_OUTPUT
+
+  docker-prod:
+    needs: [terraform-prod, get-version]
+    uses: ./.github/workflows/docker-build.yml
+    with:
+      environment: prod
+      image_tag: ${{ needs.get-version.outputs.version }}
+      gcp_region: ${{ vars.GCP_REGION }}
+      gcp_project_id: ${{ vars.GCP_PROJECT_ID }}
+    secrets:
+      gcp_sa_key: ${{ secrets.SA }}
