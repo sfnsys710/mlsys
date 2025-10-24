@@ -15,7 +15,7 @@ RUN uv sync --locked --no-install-project --no-dev
 
 # Install project now
 COPY src ./src
-COPY scripts ./scripts
+COPY cloud_runs ./cloud_runs
 RUN uv sync --locked --no-dev
 
 # Runtime stage: it is important to use same python version as in pyproject.toml and the builder
@@ -26,7 +26,7 @@ WORKDIR /app
 # Copy virtual environment and application
 COPY --from=builder /app/.venv ./.venv
 COPY --from=builder /app/src ./src
-COPY --from=builder /app/scripts ./scripts
+COPY --from=builder /app/cloud_runs ./cloud_runs
 
 # Environment variables
 ENV PATH="/app/.venv/bin:$PATH" \
