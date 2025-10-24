@@ -456,7 +456,7 @@ If only infra/docs/tests change, Terraform runs but Docker build is skipped.
 
 **Required Environment** (GitHub repo settings):
 - **`gcp`**: Single environment for all deployments
-  - Secret: `SA` (GCP service account JSON key)
+  - Secret: `SA` (GCP service account JSON key) <!-- pragma: allowlist secret -->
   - Variables: `GCP_PROJECT_ID`, `GCP_REGION`
 
 ## Enterprise Features
