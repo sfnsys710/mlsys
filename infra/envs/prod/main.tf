@@ -1,7 +1,7 @@
 # Production environment configuration
 
 terraform {
-  required_version = "~> 1.10.0"
+  required_version = ">= 1.10.0"
 
   required_providers {
     google = {
@@ -30,10 +30,8 @@ module "mlsys" {
   region                  = var.region
   environment             = "prod"
   bucket_models_name      = "mlsys-models-prod"
-
   artifact_registry_name  = "mlsys-prod"
-  bigquery_dataset_name   = "ml_registry_prod"
-  model_registry_sa_name  = "model-registry-sa-prod"
+  model_registry_sa_name  = "function-model-reg-prod"
 }
 
 # Variables

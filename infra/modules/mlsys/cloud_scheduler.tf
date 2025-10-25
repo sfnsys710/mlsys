@@ -8,7 +8,7 @@ resource "google_cloud_scheduler_job" "titanic_predictions" {
   description      = "Daily titanic survival predictions (${var.environment})"
   schedule         = "0 2 * * *" # Every day at 2 AM UTC
   time_zone        = "UTC"
-  region           = var.region
+  region           = "europe-west1" # Cloud Scheduler doesn't support all regions
   project          = var.project_id
   attempt_deadline = "1800s" # 30 minutes max
 
@@ -50,10 +50,10 @@ resource "google_cloud_scheduler_job" "titanic_predictions" {
 # Service account for Cloud Scheduler
 # Needs permission to invoke Cloud Run Jobs
 resource "google_service_account" "scheduler" {
-  account_id   = "cloud-scheduler-sa-${var.environment}"
+  account_id   = "scheduler-ml-pred-${var.environment}"
   project      = var.project_id
-  display_name = "Cloud Scheduler Service Account (${var.environment})"
-  description  = "Service account for Cloud Scheduler to trigger Cloud Run Jobs"
+  display_name = "Cloud Scheduler - ML Predictions (${var.environment})"
+  description  = "Service account for Cloud Scheduler to trigger ML prediction Cloud Run Jobs on schedule"
 }
 
 # Grant Cloud Run Invoker role (trigger Cloud Run Jobs)

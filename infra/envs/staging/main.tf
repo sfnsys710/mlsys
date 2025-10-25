@@ -1,7 +1,7 @@
 # Staging environment configuration
 
 terraform {
-  required_version = "~> 1.10.0"
+  required_version = ">= 1.10.0"
 
   required_providers {
     google = {
@@ -30,10 +30,8 @@ module "mlsys" {
   region                  = var.region
   environment             = "staging"
   bucket_models_name      = "mlsys-models-staging"
-
   artifact_registry_name  = "mlsys-staging"
-  bigquery_dataset_name   = "ml_registry_staging"
-  model_registry_sa_name  = "model-registry-sa-staging"
+  model_registry_sa_name  = "function-model-reg-staging"
 }
 
 # Variables

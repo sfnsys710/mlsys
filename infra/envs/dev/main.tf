@@ -1,7 +1,7 @@
 # Dev environment configuration
 
 terraform {
-  required_version = "~> 1.10.0"
+  required_version = ">= 1.10.0"
 
   required_providers {
     google = {
@@ -31,8 +31,7 @@ module "mlsys" {
   environment             = "dev"
   bucket_models_name      = "mlsys-models-dev"
   artifact_registry_name  = "mlsys-dev"
-  bigquery_dataset_name   = "ml_registry_dev"
-  model_registry_sa_name  = "model-registry-sa-dev"
+  model_registry_sa_name  = "function-model-reg-dev"
 }
 
 # Variables
@@ -56,8 +55,8 @@ output "artifact_registry_name" {
   value = module.mlsys.artifact_registry_name
 }
 
-output "bigquery_dataset_id" {
-  value = module.mlsys.bigquery_dataset_id
+output "mlsys_dataset_id" {
+  value = module.mlsys.mlsys_dataset_id
 }
 
 output "model_registry_sa_email" {

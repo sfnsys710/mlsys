@@ -1,18 +1,17 @@
-# BigQuery dataset for model registry
-
-resource "google_bigquery_dataset" "ml_registry" {
-  dataset_id                 = var.bigquery_dataset_name
+# BigQuery dataset for ML system (training, predictions, model registry, etc.)
+resource "google_bigquery_dataset" "mlsys" {
+  dataset_id                 = "mlsys_${var.environment}"
   project                    = var.project_id
   location                   = var.region
-  description                = "Model registry for tracking ML model deployments and metadata"
+  description                = "ML system dataset for training data, predictions, model registry, and related tables (${var.environment})"
   delete_contents_on_destroy = var.environment != "prod"
 }
 
 # Model registry table
-resource "google_bigquery_table" "models" {
-  dataset_id          = google_bigquery_dataset.ml_registry.dataset_id
+resource "google_bigquery_table" "model_registry" {
+  dataset_id          = google_bigquery_dataset.mlsys.dataset_id
   project             = var.project_id
-  table_id            = "models"
+  table_id            = "model_registry"
   deletion_protection = var.environment == "prod"
 
   schema = jsonencode([

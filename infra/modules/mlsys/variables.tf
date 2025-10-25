@@ -29,11 +29,6 @@ variable "artifact_registry_name" {
   type        = string
 }
 
-variable "bigquery_dataset_name" {
-  description = "BigQuery dataset name for model registry"
-  type        = string
-}
-
 variable "model_registry_sa_name" {
   description = "Service account name for model registry Cloud Function"
   type        = string
