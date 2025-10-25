@@ -2,8 +2,8 @@
 resource "google_service_account" "model_registry" {
   account_id   = var.model_registry_sa_name
   project      = var.project_id
-  display_name = "Model Registry Cloud Function (${var.environment})"
-  description  = "Service account for model registry Cloud Function to register models in BigQuery"
+  display_name = "Cloud Function - Model Registry (${var.environment})"
+  description  = "Service account for Cloud Function that registers models in BigQuery when uploaded to GCS"
 }
 
 # Grant BigQuery Data Editor role (allows inserting data)

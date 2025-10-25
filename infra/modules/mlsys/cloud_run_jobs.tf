@@ -3,16 +3,18 @@
 # Triggered by Cloud Scheduler jobs defined in cloud_scheduler.tf
 
 resource "google_cloud_run_v2_job" "ml_predictions" {
-  name     = "ml-predictions-${var.environment}"
-  location = var.region
-  project  = var.project_id
+  name                = "ml-predictions-${var.environment}"
+  location            = var.region
+  project             = var.project_id
+  deletion_protection = false
 
   template {
     template {
       # Use the Docker image from Artifact Registry
       # Updated by CI/CD workflows (docker.yml)
+      # Using placeholder image for initial Terraform apply
       containers {
-        image = "${var.region}-docker.pkg.dev/${var.project_id}/${var.artifact_registry_name}/mlsys:latest"
+        image = "gcr.io/cloudrun/hello"
 
         # Entry point: run the predict.py script
         # Arguments passed via Cloud Scheduler override these defaults
@@ -53,10 +55,10 @@ resource "google_cloud_run_v2_job" "ml_predictions" {
 
 # Service account for prediction jobs
 resource "google_service_account" "predictions" {
-  account_id   = "ml-predictions-sa-${var.environment}"
+  account_id   = "run-ml-predictions-${var.environment}"
   project      = var.project_id
-  display_name = "ML Predictions Service Account (${var.environment})"
-  description  = "Service account for Cloud Run prediction jobs"
+  display_name = "Cloud Run - ML Predictions (${var.environment})"
+  description  = "Service account for Cloud Run Jobs that run ML prediction pipelines"
 }
 
 # Grant BigQuery Data Editor role (read/write tables)

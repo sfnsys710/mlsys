@@ -75,8 +75,8 @@ def register_model(event: dict, _context: dict) -> None:
 
     # Prepare BigQuery row
     bq_project_id = os.getenv("GCP_PROJECT_ID", "soufianesys")
-    dataset_id = "ml_registry"
-    table_id = "models"
+    dataset_id = f"mlsys_{environment}"
+    table_id = "model_registry"
     full_table_id = f"{bq_project_id}.{dataset_id}.{table_id}"
 
     # Create BigQuery client
