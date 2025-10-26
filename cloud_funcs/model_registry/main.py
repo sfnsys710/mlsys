@@ -88,7 +88,6 @@ def register_model(event: dict, _context: dict) -> None:
         "model_version": model_version,
         "environment": environment,
         "gcs_bucket": bucket_name,
-        "gcs_path": blob_path,
         "file_size_bytes": file_size,
         "upload_timestamp": upload_timestamp,
         "uploader": uploader,
