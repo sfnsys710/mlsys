@@ -36,10 +36,9 @@ jobs:
             --region=${{ vars.GCP_REGION }} \
             --source=. \
             --entry-point=register_model \
-            --trigger-event-filters="type=google.cloud.storage.object.v1.finalized" \
-            --trigger-event-filters="bucket=mlsys-models-${{ inputs.environment }}" \
-            --set-env-vars GCP_PROJECT_ID=${{ vars.GCP_PROJECT_ID }} \
-            --service-account=model-registry-sa-${{ inputs.environment }}@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com \
+            --trigger-bucket=mlsys-models-${{ inputs.environment }} \
+            --service-account=function-model-reg-${{ inputs.environment }}@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com \
+            --set-env-vars=GCP_PROJECT_ID=${{ vars.GCP_PROJECT_ID }} \
             --max-instances=5 \
             --memory=256MB \
             --timeout=60s
