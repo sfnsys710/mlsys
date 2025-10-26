@@ -76,10 +76,6 @@ jobs:
     with:
       environment: dev
       image_tag: ${{ github.sha }}
-      gcp_region: ${{ vars.GCP_REGION }}
-      gcp_project_id: ${{ vars.GCP_PROJECT_ID }}
-    secrets:
-      gcp_sa_key: ${{ secrets.GCP_SA_KEY }}
 
   cloud-functions-dev:
     needs: [pre-commit]
