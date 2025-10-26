@@ -59,8 +59,7 @@ jobs:
   #             - 'cloud_funcs/**'
 
   terraform-dev:
-    needs: [pre-commit, check-changes]
-    if: needs.check-changes.outputs.infra_changed == 'true'
+    needs: [pre-commit]
     uses: ./.github/workflows/terraform.yml
     with:
       environment: dev
@@ -71,11 +70,8 @@ jobs:
       gcp_sa_key: ${{ secrets.SA }}
 
   docker-dev:
-    needs: [check-changes, terraform-dev]
-    if: |
-      always() &&
-      needs.check-changes.outputs.code_changed == 'true' &&
-      (needs.terraform-dev.result == 'success' || needs.terraform-dev.result == 'skipped')
+    needs: [terraform-dev]
+    if: always() && (needs.terraform-dev.result == 'success' || needs.terraform-dev.result == 'skipped')
     uses: ./.github/workflows/docker.yml
     with:
       environment: dev
@@ -86,11 +82,8 @@ jobs:
       gcp_sa_key: ${{ secrets.SA }}
 
   cloud-functions-dev:
-    needs: [check-changes, terraform-dev]
-    if: |
-      always() &&
-      needs.check-changes.outputs.cloud_funcs_changed == 'true' &&
-      (needs.terraform-dev.result == 'success' || needs.terraform-dev.result == 'skipped')
+    needs: [terraform-dev]
+    if: always() && (needs.terraform-dev.result == 'success' || needs.terraform-dev.result == 'skipped')
     uses: ./.github/workflows/cloud_functions.yml
     with:
       environment: dev
