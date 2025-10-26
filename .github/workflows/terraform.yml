@@ -30,6 +30,8 @@ jobs:
     defaults:
       run:
         working-directory: infra/envs/${{ inputs.environment }}
+    env:
+      GOOGLE_CREDENTIALS: ${{ secrets.gcp_sa_key }}
 
     steps:
       - name: Checkout code
@@ -45,14 +47,6 @@ jobs:
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ steps.tf_version.outputs.version }}
-
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.gcp_sa_key }}
-
-      - name: Set up Cloud SDK
-        uses: google-github-actions/setup-gcloud@v2
 
       - name: Terraform Format Check
         run: terraform fmt -check -recursive
