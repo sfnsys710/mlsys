@@ -11,52 +11,31 @@ on:
         description: 'Docker image tag (e.g., git SHA or version)'
         required: true
         type: string
-      gcp_region:
-        description: 'GCP region'
-        required: true
-        type: string
-      gcp_project_id:
-        description: 'GCP project ID'
-        required: true
-        type: string
-    secrets:
-      gcp_sa_key:
-        description: 'GCP service account key JSON'
-        required: true
 
 jobs:
-  docker-build-push:
+  docker-build:
+    name: Build and push Docker (${{ inputs.environment }})
     runs-on: ubuntu-latest
+    environment: gcp
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Cloud SDK
-        uses: google-github-actions/setup-gcloud@v2
+      - name: Checkout
+        uses: actions/checkout@v5
 
       - name: Authenticate to Google Cloud
         run: |
-          echo '${{ secrets.gcp_sa_key }}' > ${HOME}/gcp-key.json
+          echo '${{ secrets.GCP_SA_KEY }}' > ${HOME}/gcp-key.json
           gcloud auth activate-service-account --key-file=${HOME}/gcp-key.json
-          gcloud config set project ${{ inputs.gcp_project_id }}
+          gcloud config set project ${{ vars.GCP_PROJECT_ID }}
           rm ${HOME}/gcp-key.json
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Configure Docker for Artifact Registry
-        run: |
-          gcloud auth configure-docker ${{ inputs.gcp_region }}-docker.pkg.dev
+        run: gcloud auth configure-docker ${{ vars.GCP_REGION }}-docker.pkg.dev
 
-      - name: Build Docker image
+      - name: Build and Push Docker Image
         run: |
-          docker build \
-            -t ${{ inputs.gcp_region }}-docker.pkg.dev/${{ inputs.gcp_project_id }}/mlsys-${{ inputs.environment }}/mlsys:${{ inputs.image_tag }} \
-            -t ${{ inputs.gcp_region }}-docker.pkg.dev/${{ inputs.gcp_project_id }}/mlsys-${{ inputs.environment }}/mlsys:latest \
-            .
-
-      - name: Push Docker image
-        run: |
-          docker push ${{ inputs.gcp_region }}-docker.pkg.dev/${{ inputs.gcp_project_id }}/mlsys-${{ inputs.environment }}/mlsys:${{ inputs.image_tag }}
-          docker push ${{ inputs.gcp_region }}-docker.pkg.dev/${{ inputs.gcp_project_id }}/mlsys-${{ inputs.environment }}/mlsys:latest
-
-      - name: Output image URI
-        run: |
-          echo "Image URI: ${{ inputs.gcp_region }}-docker.pkg.dev/${{ inputs.gcp_project_id }}/mlsys-${{ inputs.environment }}/mlsys:${{ inputs.image_tag }}"
+          FULL_IMAGE_TAG="${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/mlsys-${{ inputs.environment }}/mlsys-${{ inputs.environment }}:${{ inputs.image_tag }}"
+          docker build -t $FULL_IMAGE_TAG .
+          docker push $FULL_IMAGE_TAG
