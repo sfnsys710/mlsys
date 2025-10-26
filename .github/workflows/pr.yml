@@ -93,7 +93,7 @@ jobs:
 
       - name: Build and Push Docker Image
         run: |
-          FULL_IMAGE_TAG="${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/mlsys-dev/mlsys-dev:${{ github.sha }}"
+          FULL_IMAGE_TAG="${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/mlsys-dev/mlsys-dev:latest"
           docker build -t $FULL_IMAGE_TAG .
           docker push $FULL_IMAGE_TAG
 

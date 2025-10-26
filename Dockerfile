@@ -32,4 +32,4 @@ COPY --from=builder /app/cloud_runs ./cloud_runs
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1
 
-CMD "/bin/sh"
+# No default CMD - let Cloud Run Jobs specify the command
