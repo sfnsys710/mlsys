@@ -25,38 +25,38 @@ jobs:
         uses: astral-sh/setup-uv@v4
 
       - name: Install dependencies
-        run: uv sync
+        run: uv sync --group pre-commit
 
       - name: Run pre-commit hooks
         run: uv run pre-commit run --all-files
 
-  check-changes:
-    runs-on: ubuntu-latest
-    outputs:
-      infra_changed: ${{ steps.filter.outputs.infra }}
-      code_changed: ${{ steps.filter.outputs.code }}
-      cloud_funcs_changed: ${{ steps.filter.outputs.cloud_funcs }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+  # check-changes:
+  #   runs-on: ubuntu-latest
+  #   outputs:
+  #     infra_changed: ${{ steps.filter.outputs.infra }}
+  #     code_changed: ${{ steps.filter.outputs.code }}
+  #     cloud_funcs_changed: ${{ steps.filter.outputs.cloud_funcs }}
+  #   steps:
+  #     - name: Checkout code
+  #       uses: actions/checkout@v4
 
-      - name: Check for changes
-        uses: dorny/paths-filter@v3
-        id: filter
-        with:
-          filters: |
-            infra:
-              - 'infra/**'
-            code:
-              - 'src/**'
-              - 'mlsys/**'
-              - 'cloud_runs/**'
-              - 'pyproject.toml'
-              - 'uv.lock'
-              - 'Dockerfile'
-              - '.dockerignore'
-            cloud_funcs:
-              - 'cloud_funcs/**'
+  #     - name: Check for changes
+  #       uses: dorny/paths-filter@v3
+  #       id: filter
+  #       with:
+  #         filters: |
+  #           infra:
+  #             - 'infra/**'
+  #           code:
+  #             - 'src/**'
+  #             - 'mlsys/**'
+  #             - 'cloud_runs/**'
+  #             - 'pyproject.toml'
+  #             - 'uv.lock'
+  #             - 'Dockerfile'
+  #             - '.dockerignore'
+  #           cloud_funcs:
+  #             - 'cloud_funcs/**'
 
   terraform-dev:
     needs: [pre-commit, check-changes]
