@@ -58,20 +58,20 @@ jobs:
   #           cloud_funcs:
   #             - 'cloud_funcs/**'
 
-  terraform-dev:
-    needs: [pre-commit]
-    uses: ./.github/workflows/terraform.yml
-    with:
-      environment: dev
-      terraform_action: apply
-      gcp_region: ${{ vars.GCP_REGION }}
-      gcp_project_id: ${{ vars.GCP_PROJECT_ID }}
-    secrets:
-      gcp_sa_key: ${{ secrets.GCP_SA_KEY }}
+  # terraform-dev:
+  #   needs: [pre-commit]
+  #   uses: ./.github/workflows/terraform.yml
+  #   with:
+  #     environment: dev
+  #     terraform_action: apply
+  #     gcp_region: ${{ vars.GCP_REGION }}
+  #     gcp_project_id: ${{ vars.GCP_PROJECT_ID }}
+  #   secrets:
+  #     gcp_sa_key: ${{ secrets.GCP_SA_KEY }}
 
   docker-dev:
-    needs: [terraform-dev]
-    if: always() && (needs.terraform-dev.result == 'success' || needs.terraform-dev.result == 'skipped')
+    needs: [pre-commit]
+    if: always()
     uses: ./.github/workflows/docker.yml
     with:
       environment: dev
@@ -82,8 +82,8 @@ jobs:
       gcp_sa_key: ${{ secrets.GCP_SA_KEY }}
 
   cloud-functions-dev:
-    needs: [terraform-dev]
-    if: always() && (needs.terraform-dev.result == 'success' || needs.terraform-dev.result == 'skipped')
+    needs: [pre-commit]
+    if: always()
     uses: ./.github/workflows/cloud_functions.yml
     with:
       environment: dev
