@@ -7,14 +7,11 @@ on:
         description: 'Environment to deploy to (dev, staging, prod)'
         required: true
         type: string
-    secrets:
-      gcp_sa_key:
-        description: 'GCP service account key JSON'
-        required: true
 
 jobs:
   deploy-cloud-functions:
     runs-on: ubuntu-latest
+    environment: gcp
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -24,7 +21,7 @@ jobs:
 
       - name: Authenticate to Google Cloud
         run: |
-          echo '${{ secrets.gcp_sa_key }}' > ${HOME}/gcp-key.json
+          echo '${{ secrets.GCP_SA_KEY }}' > ${HOME}/gcp-key.json
           gcloud auth activate-service-account --key-file=${HOME}/gcp-key.json
           gcloud config set project ${{ vars.GCP_PROJECT_ID }}
           rm ${HOME}/gcp-key.json
