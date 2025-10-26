@@ -2,6 +2,8 @@
 
 ML System for training models in Jupyter and deploying to GCP with scheduled predictions using Cloud Scheduler and Cloud Run Jobs.
 
+⚠️ **Note: this is an early release, so stay tuned for upcoming features**
+
 ## Overview
 
 Repository for machine learning development and production deployment with progressive deployment strategy across dev, staging, and prod environments.
@@ -179,11 +181,6 @@ gcs_put(model, GCS_BUCKET_MODELS_DEV, "my-model/v1/model.pkl")
 ```
 
 See `notebooks/README.md` for detailed guidance and `notebooks/titanic-survival-example.ipynb` for a complete example.
-
-## Documentation
-
-- [notebooks/README.md](./notebooks/README.md) - Notebook development guide
-- [CLAUDE.md](./CLAUDE.md) - AI assistant guidance
 
 ## Environments
 
