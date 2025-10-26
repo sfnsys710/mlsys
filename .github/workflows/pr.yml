@@ -67,7 +67,7 @@ jobs:
       gcp_region: ${{ vars.GCP_REGION }}
       gcp_project_id: ${{ vars.GCP_PROJECT_ID }}
     secrets:
-      gcp_sa_key: ${{ secrets.SA }}
+      gcp_sa_key: ${{ secrets.GCP_SA_KEY }}
 
   docker-dev:
     needs: [terraform-dev]
@@ -79,7 +79,7 @@ jobs:
       gcp_region: ${{ vars.GCP_REGION }}
       gcp_project_id: ${{ vars.GCP_PROJECT_ID }}
     secrets:
-      gcp_sa_key: ${{ secrets.SA }}
+      gcp_sa_key: ${{ secrets.GCP_SA_KEY }}
 
   cloud-functions-dev:
     needs: [terraform-dev]
@@ -88,4 +88,4 @@ jobs:
     with:
       environment: dev
     secrets:
-      gcp_sa_key: ${{ secrets.SA }}
+      gcp_sa_key: ${{ secrets.GCP_SA_KEY }}

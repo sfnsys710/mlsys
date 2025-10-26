@@ -30,8 +30,6 @@ jobs:
     defaults:
       run:
         working-directory: infra/envs/${{ inputs.environment }}
-    env:
-      GOOGLE_CREDENTIALS: ${{ secrets.gcp_sa_key }}
 
     steps:
       - name: Checkout code
@@ -53,13 +51,19 @@ jobs:
         continue-on-error: true
 
       - name: Terraform Init
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.gcp_sa_key }}
         run: |
           terraform init -backend-config="bucket=mlsys-terraform-state-${{ inputs.environment }}"
 
       - name: Terraform Validate
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.gcp_sa_key }}
         run: terraform validate
 
       - name: Terraform Plan
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.gcp_sa_key }}
         run: |
           terraform plan \
             -var="project_id=${{ inputs.gcp_project_id }}" \
@@ -68,5 +72,7 @@ jobs:
 
       - name: Terraform Apply
         if: inputs.terraform_action == 'apply'
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.gcp_sa_key }}
         run: |
           terraform apply -auto-approve tfplan
