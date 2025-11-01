@@ -11,9 +11,8 @@ terraform {
   }
 
   # Remote state in GCS
-  # Initialize with: terraform init -backend-config="bucket=mlsys-terraform-state-prod"
   backend "gcs" {
-    prefix = "mlsys/prod"
+    bucket = "mlsys-terraform-state-prod"
   }
 }
 
@@ -26,12 +25,9 @@ provider "google" {
 module "mlsys" {
   source = "../../modules/mlsys"
 
-  project_id              = var.project_id
-  region                  = var.region
-  environment             = "prod"
-  bucket_models_name      = "mlsys-models-prod"
-  artifact_registry_name  = "mlsys-prod"
-  model_registry_sa_name  = "function-model-reg-prod"
+  project_id  = var.project_id
+  region      = var.region
+  environment = "prod"
 }
 
 # Variables
@@ -43,7 +39,6 @@ variable "project_id" {
 variable "region" {
   description = "GCP region"
   type        = string
-  default     = "us-central1"
 }
 
 # Outputs
@@ -51,18 +46,18 @@ output "models_bucket_name" {
   value = module.mlsys.models_bucket_name
 }
 
-output "composer_bucket_name" {
-  value = module.mlsys.composer_bucket_name
-}
-
 output "artifact_registry_name" {
   value = module.mlsys.artifact_registry_name
 }
 
-output "bigquery_dataset_id" {
-  value = module.mlsys.bigquery_dataset_id
+output "mlsys_dataset_id" {
+  value = module.mlsys.mlsys_dataset_id
 }
 
-output "model_registry_sa_email" {
-  value = module.mlsys.model_registry_sa_email
+output "cloud_run_service_name" {
+  value = module.mlsys.cloud_run_service_name
+}
+
+output "mlsys_sa_email" {
+  value = module.mlsys.mlsys_sa_email
 }
