@@ -65,10 +65,5 @@ resource "google_bigquery_table" "model_registry" {
     }
   ])
 
-  time_partitioning {
-    type  = "DAY"
-    field = "registered_at"
-  }
-
   clustering = ["model_name", "environment", "model_version"]
 }
