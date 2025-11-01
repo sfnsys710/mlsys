@@ -1,89 +1,196 @@
-name: PR - Dev Deployment
+name: PR Checks and Dev Deployment
 
 on:
   pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
     branches:
       - main
 
+# Prevent concurrent runs on the same PR
 concurrency:
   group: pr-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
+  # Block external PRs from consuming any resources
+  authorize:
+    name: Authorize PR
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - name: Authorized
+        run: echo "PR authorized to run workflows"
+
+  analyze-changes:
+    name: Analyze versions and changes
+    runs-on: ubuntu-latest
+    needs: authorize
+    outputs:
+      mlsys_version: ${{ steps.extract-versions.outputs.mlsys_version }}
+      tf_version: ${{ steps.extract-versions.outputs.tf_version }}
+      infra_changed: ${{ steps.set-outputs.outputs.infra_changed }}
+      code_changed: ${{ steps.set-outputs.outputs.code_changed }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0  # Need full history to detect changes
+
+      - name: Extract versions
+        id: extract-versions
+        run: |
+          mlsys_version=$(grep -m 1 '^version = ' pyproject.toml | sed 's/version = "\(.*\)"/\1/')
+          tf_version=$(cat infra/.terraform-version)
+          echo "mlsys_version = $mlsys_version"
+          echo "tf_version = $tf_version"
+          echo "mlsys_version=$mlsys_version" >> $GITHUB_OUTPUT
+          echo "tf_version=$tf_version" >> $GITHUB_OUTPUT
+
+      - name: Check for changes
+        id: check-changes
+        uses: tj-actions/changed-files@v44
+        with:
+          files_yaml: |
+            infra:
+              - infra/**
+            code:
+              - src/**
+              - scripts/**
+              - pyproject.toml
+              - uv.lock
+              - Dockerfile
+              - .dockerignore
+
+      - name: Set change outputs
+        id: set-outputs
+        run: |
+          echo "infra_changed=${{ steps.check-changes.outputs.infra_any_changed }}" >> $GITHUB_OUTPUT
+          echo "code_changed=${{ steps.check-changes.outputs.code_any_changed }}" >> $GITHUB_OUTPUT
+          echo "Infrastructure changed: ${{ steps.check-changes.outputs.infra_any_changed }}"
+          echo "Code changed: ${{ steps.check-changes.outputs.code_any_changed }}"
+
   pre-commit:
+    name: Pre-commit
+    needs: analyze-changes
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
+        uses: actions/checkout@v5
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@v6
+
+      - name: Set up Python
+        run: uv python install
 
       - name: Install dependencies
-        run: uv sync --group pre-commit
+        run: |
+          uv sync --group pre-commit
+          uv tree --group pre-commit
 
       - name: Run pre-commit hooks
-        run: uv run pre-commit run --all-files
+        run: uv run --no-sync pre-commit run --all-files
 
-  # check-changes:
-  #   runs-on: ubuntu-latest
-  #   outputs:
-  #     infra_changed: ${{ steps.filter.outputs.infra }}
-  #     code_changed: ${{ steps.filter.outputs.code }}
-  #     cloud_funcs_changed: ${{ steps.filter.outputs.cloud_funcs }}
-  #   steps:
-  #     - name: Checkout code
-  #       uses: actions/checkout@v4
+  terraform-checks:
+    name: Terraform checks
+    needs: analyze-changes
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
 
-  #     - name: Check for changes
-  #       uses: dorny/paths-filter@v3
-  #       id: filter
-  #       with:
-  #         filters: |
-  #           infra:
-  #             - 'infra/**'
-  #           code:
-  #             - 'src/**'
-  #             - 'mlsys/**'
-  #             - 'cloud_runs/**'
-  #             - 'pyproject.toml'
-  #             - 'uv.lock'
-  #             - 'Dockerfile'
-  #             - '.dockerignore'
-  #           cloud_funcs:
-  #             - 'cloud_funcs/**'
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ needs.analyze-changes.outputs.tf_version }}
 
-  # terraform-dev:
-  #   needs: [pre-commit]
-  #   uses: ./.github/workflows/terraform.yml
-  #   with:
-  #     environment: dev
-  #     terraform_action: apply
-  #     gcp_region: ${{ vars.GCP_REGION }}
-  #     gcp_project_id: ${{ vars.GCP_PROJECT_ID }}
-  #   secrets:
-  #     gcp_sa_key: ${{ secrets.GCP_SA_KEY }}
+      - name: Terraform Format Check
+        run: terraform fmt -check -recursive
+        working-directory: infra
 
-  docker-build:
-    name: Build and push Docker (${{ inputs.environment }})
-    needs: [pre-commit]
+      - name: Terraform Init (dev)
+        run: terraform init -backend=false
+        working-directory: infra/envs/dev
+
+      - name: Terraform Validate (dev)
+        run: terraform validate
+        working-directory: infra/envs/dev
+
+      - name: Terraform Init (staging)
+        run: terraform init -backend=false
+        working-directory: infra/envs/staging
+
+      - name: Terraform Validate (staging)
+        run: terraform validate
+        working-directory: infra/envs/staging
+
+      - name: Terraform Init (prod)
+        run: terraform init -backend=false
+        working-directory: infra/envs/prod
+
+      - name: Terraform Validate (prod)
+        run: terraform validate
+        working-directory: infra/envs/prod
+
+  terraform-dev:
+    name: Terraform Plan & Apply (dev)
+    needs:
+      - analyze-changes
+      - terraform-checks
+    if: needs.analyze-changes.outputs.infra_changed == 'true'
     runs-on: ubuntu-latest
     environment: gcp
+    defaults:
+      run:
+        working-directory: infra/envs/dev
     steps:
-      - name: Checkout
+      - name: Checkout code
         uses: actions/checkout@v5
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ needs.analyze-changes.outputs.tf_version }}
 
       - name: Authenticate to Google Cloud
         run: |
           echo '${{ secrets.GCP_SA_KEY }}' > ${HOME}/gcp-key.json
           gcloud auth activate-service-account --key-file=${HOME}/gcp-key.json
           gcloud config set project ${{ vars.GCP_PROJECT_ID }}
-          rm ${HOME}/gcp-key.json
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Plan
+        run: terraform plan -out=tfplan
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve tfplan
+
+      - name: Cleanup
+        if: always()
+        run: rm -f ${HOME}/gcp-key.json
+
+  build-deploy-dev:
+    name: Build, push and deploy to Cloud Run (dev)
+    needs:
+      - analyze-changes
+      - pre-commit
+    if: needs.analyze-changes.outputs.code_changed == 'true'
+    runs-on: ubuntu-latest
+    environment: gcp
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Authenticate to Google Cloud
+        run: |
+          echo '${{ secrets.SA }}' > ${HOME}/gcp-key.json
+          gcloud auth activate-service-account --key-file=${HOME}/gcp-key.json
+          gcloud config set project ${{ vars.GCP_PROJECT_ID }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -93,13 +200,22 @@ jobs:
 
       - name: Build and Push Docker Image
         run: |
-          FULL_IMAGE_TAG="${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/mlsys-dev/mlsys-dev:latest"
-          docker build -t $FULL_IMAGE_TAG .
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+          FULL_IMAGE_TAG="${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/mlsys-dev/mlsys-dev:${SHORT_SHA}"
+          FULL_IMAGE_TAG_LATEST="${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/mlsys-dev/mlsys-dev:latest"
+          docker build -t $FULL_IMAGE_TAG -t $FULL_IMAGE_TAG_LATEST .
           docker push $FULL_IMAGE_TAG
+          docker push $FULL_IMAGE_TAG_LATEST
+          echo "SHORT_SHA=${SHORT_SHA}" >> $GITHUB_ENV
 
-  cloud-functions-dev:
-    needs: [pre-commit]
-    if: always()
-    uses: ./.github/workflows/cloud_functions.yml
-    with:
-      environment: dev
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy mlsys-service-dev \
+            --image="${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/mlsys-dev/mlsys-dev:${SHORT_SHA}" \
+            --region=${{ vars.GCP_REGION }} \
+            --platform=managed \
+            --allow-unauthenticated
+
+      - name: Cleanup
+        if: always()
+        run: rm -f ${HOME}/gcp-key.json
