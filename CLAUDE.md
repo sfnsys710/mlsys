@@ -1,46 +1,50 @@
-# CLAUDE.md - AI Assistant Guidance
+# CLAUDE.md
 
-This document provides comprehensive guidance for AI assistants working on the mlsys repository.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Project Overview
 
-**Purpose**: ML system for training models in Jupyter notebooks and deploying to GCP with scheduled predictions.
+**Purpose**: ML system for training models in Jupyter notebooks and deploying to GCP with an HTTP prediction service.
 
 **Key Technologies**:
-- Python 3.12 with uv package manager
+- Python 3.12 with uv package manager (fast, modern dependency management)
 - ML Libraries: scikit-learn, pandas, numpy, matplotlib
-- GCP: BigQuery, GCS, Cloud Run Jobs, Cloud Scheduler, Cloud Functions, Artifact Registry
-- Infrastructure: Terraform
-- CI/CD: GitHub Actions
-- Containerization: Docker (multi-stage builds)
+- GCP: BigQuery, GCS, Cloud Run Service, Artifact Registry
+- Web Framework: FastAPI (HTTP endpoints for predictions and model registry)
+- Infrastructure: Terraform 1.10.0
+- CI/CD: GitHub Actions with smart change detection
+- Containerization: Docker multi-stage builds with uv
 
 **GCP Project**: `soufianesys` (single project, resources suffixed with `-dev`, `-staging`, `-prod`)
 
 ## Architecture
 
 ### Local Workflow
-1. Download data from BigQuery using utility functions
+1. Download data from BigQuery using `bq_get()` utility function
 2. Perform EDA and ML model selection in Jupyter notebooks
-3. Upload trained model artifacts to GCS
+3. Upload trained model artifacts to GCS using `gcs_put_pickle()`
 
-### GCP Workflow
+### GCP Production Workflow
 - **Environments**: dev, staging, and prod (same GCP project, different resources)
-- **Orchestration**: Cloud Scheduler triggers Cloud Run Jobs on a schedule
-- **Compute**: Cloud Run Jobs running Docker containers
-- **Model Registry**: Cloud Functions register models automatically on GCS upload
+- **Compute**: Cloud Run Service running FastAPI in Docker container
+- **Endpoints**:
+  - `GET /predict` - Make predictions on BigQuery data
+  - `GET /model-registry` - Scan GCS and register models in BigQuery
+  - `GET /health` - Health check
 - **CI/CD**: GitHub Actions with progressive deployment
-- **Data**: BigQuery tables managed by data engineering team (full table paths passed explicitly)
+- **Data**: BigQuery tables (full table paths passed explicitly to endpoints)
 
 ### Progressive Deployment Strategy
 ```
-dev (automatic on PR) → staging (manual) → prod (manual with confirmation)
+dev (automatic on PR merge) → staging (manual) → prod (manual with confirmation)
 ```
 
 ### Deployment Flow
 ```
-Jupyter → GCS → Model Registry (Cloud Function) → BigQuery
-                                ↓
-                        Cloud Scheduler → Cloud Run Job → BigQuery Predictions
+Jupyter → GCS Model Artifacts → Cloud Run Service (FastAPI)
+                                      ↓
+                    /predict → BigQuery Predictions
+                    /model-registry → BigQuery Registry
 ```
 
 ## Repository Structure
@@ -48,21 +52,26 @@ Jupyter → GCS → Model Registry (Cloud Function) → BigQuery
 ```
 mlsys/
 ├── .github/
-│   └── workflows/           # CI/CD workflows
+│   └── workflows/           # CI/CD workflows (pr.yml)
 ├── src/mlsys/               # Main Python package (managed by uv)
 │   ├── bq.py                # BigQuery I/O (bq_get, bq_put)
-│   ├── gcs.py               # GCS I/O (gcs_get, gcs_put)
+│   ├── gcs.py               # GCS I/O (gcs_get, gcs_put, gcs_get_pickle, gcs_put_pickle, gcs_list_blobs)
 │   ├── vis.py               # Visualization helpers
-│   └── settings.py          # Configuration management
+│   └── settings.py          # Configuration management (loads from .env)
+├── api/                     # FastAPI web service
+│   └── main.py              # HTTP endpoints: /predict, /model-registry, /health
+├── scripts/                 # Production scripts (invoked by API)
+│   ├── predict.py           # Prediction pipeline (pull data, predict, push results)
+│   └── model_registry.py    # Model registration (scan GCS, register in BigQuery)
 ├── infra/                   # Terraform infrastructure
-├── notebooks/               # Jupyter notebooks for analysis
-├── cloud_runs/              # Cloud Run Jobs (in Docker image)
-│   └── predict.py           # pull_predict_push() function
-├── cloud_funcs/             # Cloud Functions (deployed separately)
-│   └── model_registry/      # Model registration on GCS upload
-├── Dockerfile               # Container for Cloud Run Jobs
-├── .pre-commit-config.yaml  # Pre-commit hooks
-└── .env.example             # Environment variable template
+│   ├── modules/mlsys/       # Reusable infrastructure module
+│   └── envs/                # Environment-specific configs (dev, staging, prod)
+├── notebooks/               # Jupyter notebooks for model development
+│   └── titanic-survival-example.ipynb  # Complete example workflow
+├── Dockerfile               # Multi-stage container for Cloud Run Service
+├── .pre-commit-config.yaml  # Pre-commit hooks configuration
+├── .env.example             # Environment variable template
+└── CLAUDE.md                # This file
 ```
 
 ## Development Commands
@@ -93,47 +102,61 @@ gh pr create --title "..." --body "..." # Create pull request
 
 ## Naming Conventions
 
-For each model (e.g., titanic-survival):
-- **Cloud Scheduler Job**: `{model-name}-predictions-{env}` (e.g., `titanic-predictions-dev`)
-- **Cloud Run Job**: `ml-predictions-{env}` (shared across models)
-- **GCS Path**: `gs://ml-models-{env}/{model-name}/v1/`, `gs://ml-models-{env}/{model-name}/v2/`, etc.
-- **Service Account**: `{model-name}-sa-{env}@soufianesys.iam.gserviceaccount.com`
-- **BigQuery Tables**: Managed by data engineering team, full paths passed explicitly (e.g., `project.dataset.table`)
+### GCP Resources (per environment)
+- **Cloud Run Service**: `mlsys-{env}` (e.g., `mlsys-dev`)
+- **Artifact Registry**: `mlsys-{env}`
+- **GCS Bucket**: `mlsys-models-{env}`
+- **BigQuery Dataset**: `mlsys_{env}` (note: underscore, not hyphen)
+- **Service Account**: `mlsys-sa-{env}@soufianesys.iam.gserviceaccount.com`
+
+### Model Artifacts in GCS
+- **Path pattern**: `gs://mlsys-models-{env}/{model-name}/{version}/model.pkl`
+- **Model name**: lowercase, hyphen-separated (e.g., `titanic-survival`)
+- **Version**: `v1`, `v2`, `v3`, etc. (semantic versioning)
+- **Example**: `gs://mlsys-models-dev/titanic-survival/v1/model.pkl`
+- **Optional metadata**: `gs://mlsys-models-dev/titanic-survival/v1/metadata.json`
+
+### BigQuery Tables
+- **Model Registry**: `soufianesys.mlsys_{env}.model_registry`
+- **User tables**: Managed by data engineering team, full paths passed explicitly to endpoints
 
 ## GCP Resources
 
 ### Environments
 All resources exist in the same GCP project (`soufianesys`) but are suffixed by environment:
 
-**dev**: Automatic deployment on PR to main
-- GCS bucket: `ml-models-dev`
-- Cloud Run Job: `ml-predictions-dev`
-- Service accounts: `*-sa-dev@soufianesys.iam.gserviceaccount.com`
+**dev**: Automatic deployment on PR merge to main
+- GCS bucket: `mlsys-models-dev`
+- Cloud Run Service: `mlsys-dev`
+- BigQuery dataset: `mlsys_dev`
+- Service account: `mlsys-sa-dev@soufianesys.iam.gserviceaccount.com`
 
 **staging**: Manual deployment for pre-production testing
-- GCS bucket: `ml-models-staging`
-- Cloud Run Job: `ml-predictions-staging`
-- Service accounts: `*-sa-staging@soufianesys.iam.gserviceaccount.com`
+- GCS bucket: `mlsys-models-staging`
+- Cloud Run Service: `mlsys-staging`
+- BigQuery dataset: `mlsys_staging`
+- Service account: `mlsys-sa-staging@soufianesys.iam.gserviceaccount.com`
 
 **prod**: Manual deployment with confirmation
-- GCS bucket: `ml-models-prod`
-- Cloud Run Job: `ml-predictions-prod`
-- Service accounts: `*-sa-prod@soufianesys.iam.gserviceaccount.com`
+- GCS bucket: `mlsys-models-prod`
+- Cloud Run Service: `mlsys-prod`
+- BigQuery dataset: `mlsys_prod`
+- Service account: `mlsys-sa-prod@soufianesys.iam.gserviceaccount.com`
 
 ### Environment Variables
 See `.env.example` for comprehensive template. Key variables:
 ```bash
 # GCP Configuration (set via GitHub secrets/variables - NOT committed)
-GCP_PROJECT_ID=<your-gcp-project>
-GCP_REGION=<your-gcp-region>
+GCP_PROJECT_ID=soufianesys
+GCP_REGION=us-central1
 
-# GCS Model Buckets
-GCS_BUCKET_MODELS_DEV=ml-models-dev
-GCS_BUCKET_MODELS_STAGING=ml-models-staging
-GCS_BUCKET_MODELS_PROD=ml-models-prod
+# GCS Model Buckets (defaults provided in settings.py)
+GCS_BUCKET_MODELS_DEV=mlsys-models-dev
+GCS_BUCKET_MODELS_STAGING=mlsys-models-staging
+GCS_BUCKET_MODELS_PROD=mlsys-models-prod
 
-# Note: BigQuery table paths are passed explicitly to functions
-# Example: bq_get("project_id.dataset.table")
+# Note: BigQuery table paths are passed explicitly to API endpoints
+# Example: GET /predict?env=dev&input_table=project.dataset.input&...
 ```
 
 ## Code Style and Patterns
@@ -179,90 +202,120 @@ Linting rules enabled:
 - Preserve outputs, strip metadata
 - Apply ruff to notebook code cells
 
-## Key Scripts
+## Key Components
 
-### `cloud_runs/predict.py` - `pull_predict_push()`
-Core prediction pipeline that runs in Cloud Run Jobs:
+### `api/main.py` - FastAPI Service
+HTTP service with three endpoints:
+- **`GET /predict`**: Run predictions on BigQuery data
+  - Query params: `env`, `input_table`, `output_table`, `model_name`, `model_version`
+  - Invokes `scripts/predict.py`
+- **`GET /model-registry`**: Scan GCS and register models
+  - Query params: `env`
+  - Invokes `scripts/model_registry.py`
+- **`GET /health`**: Health check for Cloud Run
+
+### `scripts/predict.py` - Prediction Pipeline
+Core prediction pipeline (invoked by `/predict` endpoint):
 1. Pull data from BigQuery (using `bq_get()`)
-2. Pull model artifacts from GCS (using `gcs_get()`)
-3. Make predictions using loaded model
-4. Add metadata (timestamp, model name, model version)
-5. Push predictions back to BigQuery (using `bq_put()`)
+2. Load model from GCS (using `gcs_get_pickle()`)
+3. Make predictions with `.predict()` and `.predict_proba()`
+4. Add metadata columns: `PredictionTimestamp`, `ModelName`, `ModelVersion`
+5. Push predictions to BigQuery (using `bq_put()` with `WRITE_APPEND`)
 
-### `cloud_funcs/model_registry/` - Cloud Function
-Event-based trigger on new object uploads to `ml-models-{dev/staging/prod}` buckets:
-- Registers model metadata in BigQuery registry
-- Updates model inventory
-- Tracks: model name, version, upload timestamp, file size, uploader, environment
-- Stored in BigQuery table: `ml_registry.models`
+**Note**: Currently hardcoded for Titanic model (expects `PassengerId`, produces `Survived`). Needs generalization for other models.
+
+### `scripts/model_registry.py` - Model Registration
+Scans GCS bucket and registers models in BigQuery (invoked by `/model-registry` endpoint):
+- Lists all blobs in `mlsys-models-{env}` bucket
+- Filters for `.pkl` files matching pattern: `{model_name}/v{version}/model.pkl`
+- Optionally reads `metadata.json` from same directory
+- Upserts to `mlsys_{env}.model_registry` table with: model name, version, environment, bucket, file size, timestamps
 
 ## Infrastructure Details
 
 ### Terraform Structure
-- **State**: Separate GCS buckets per environment (`sfn-terraform-state-dev`, `sfn-terraform-state-staging`, `sfn-terraform-state-prod`)
-- **Version**: Managed via `.terraform-version` file
+- **State**: Separate GCS buckets per environment (`mlsys-terraform-state-dev`, `mlsys-terraform-state-staging`, `mlsys-terraform-state-prod`)
+- **Version**: Terraform 1.10.0 (managed via `.terraform-version` file)
 - **Secrets**: Managed manually via `gcloud secrets` (NOT in Terraform)
 - **Variables**: Local dev uses `terraform.tfvars`, CI/CD uses command-line variables
-- **Modules**: Reusable module for mlsys infrastructure
+- **Modules**: Reusable module in `infra/modules/mlsys/`, instantiated per environment in `infra/envs/{env}/`
 
-Key resources:
-- GCS buckets (`ml-models-{env}`)
-- Artifact Registry repositories
-- Service accounts with IAM roles
-- Cloud Run Jobs (via Docker images)
-- Cloud Scheduler jobs (trigger predictions)
+Key resources managed by Terraform:
+- **GCS buckets** (`mlsys-models-{env}`) - Model artifact storage with versioning
+- **BigQuery datasets** (`mlsys_{env}`) and model registry table
+- **Artifact Registry repositories** (`mlsys-{env}`) - Docker images
+- **Cloud Run Service** (`mlsys-{env}`) - FastAPI container
+  - Note: Terraform ignores `image` changes (managed by CI/CD)
+- **Service accounts** (`mlsys-sa-{env}`) with IAM roles:
+  - `roles/bigquery.dataEditor` - Read/write BigQuery
+  - `roles/bigquery.jobUser` - Run queries
+  - `roles/storage.objectAdmin` - Full GCS access
 
 ### Docker Configuration
-Multi-stage build following best practices:
+Multi-stage build optimized for Cloud Run:
 
 **Builder stage**: `ghcr.io/astral-sh/uv:python3.12-bookworm-slim`
-- `UV_PYTHON_DOWNLOADS=0`: Force use of system Python 3.12
-- `UV_COMPILE_BYTECODE=1`: Pre-compile bytecode for faster startup
-- Install dependencies first for better layer caching
+- Uses uv for fast dependency installation (10-100x faster than pip)
+- `UV_PYTHON_DOWNLOADS=0`: Force use of system Python 3.12 (no downloads)
+- `UV_COMPILE_BYTECODE=1`: Pre-compile bytecode for faster container startup
+- Install dependencies first (better layer caching, only rebuilds if `uv.lock` changes)
+- Then install project code
 
 **Runtime stage**: `python:3.12-slim-bookworm`
-- Minimal runtime image
-- Copy only necessary files from builder
-- Optimized for Cloud Run
+- Minimal runtime image (~150MB vs 1GB+ with builder)
+- Copy only `.venv/`, `src/`, `scripts/`, `api/` from builder
+- Expose port 8080 (Cloud Run standard)
+- Default CMD: `uvicorn api.main:app --host 0.0.0.0 --port 8080`
+
+**.dockerignore**: Excludes notebooks, tests, docs, infra, `.git`, IDE files for smaller build context
 
 ## CI/CD Architecture
 
-### Workflow Design
-Modular architecture with reusable workflows:
+### GitHub Actions Workflow (`.github/workflows/pr.yml`)
+Unified workflow that auto-deploys to dev on PR merge to main:
 
-**Main Workflows** (trigger deployments):
-- `pr.yml`: Auto-deploy to dev on PR to main
-- `staging.yml`: Manual staging deployment
-- `prod.yml`: Manual prod deployment with confirmation
+**Steps**:
+1. **Authorize**: Block external PRs (security check)
+2. **Analyze Changes**: Detect code vs. infrastructure changes
+3. **Pre-commit Checks**: Run all quality hooks (ruff, detect-secrets, nbstripout, etc.)
+4. **Terraform Operations**: Format, validate, plan for all environments
+5. **Conditional Deployment**:
+   - If infra changed: Apply Terraform to dev
+   - If code changed: Build Docker image, push to Artifact Registry, deploy to Cloud Run dev
 
-**Reusable Components**:
-- `terraform.yml`: Parameterized Terraform operations
-- `docker.yml`: Parameterized Docker build/push
+### Smart Change Detection
+Avoids unnecessary operations by detecting what changed:
 
-### Code Change Detection
-Smart detection avoids unnecessary Docker builds:
+**Infrastructure changes** (triggers Terraform apply):
 ```yaml
-files: |
-  src/**
-  mlsys/**
-  cloud_runs/**
-  pyproject.toml
-  uv.lock
-  Dockerfile
+infra/**
 ```
-If only infra/docs/tests change, Terraform runs but Docker build is skipped.
+
+**Code changes** (triggers Docker build + deploy):
+```yaml
+src/**
+api/**
+scripts/**
+pyproject.toml
+uv.lock
+Dockerfile
+```
+
+If only docs/tests change, workflow skips both Terraform and Docker steps.
 
 ### GitHub Secrets and Variables
 **Environment**: `gcp` (single environment for all deployments)
-- Secret: `SA` (GCP service account JSON key)  # pragma: allowlist secret
-- Variables: `GCP_PROJECT_ID`, `GCP_REGION`
+- **Secret**: `SA` - GCP service account JSON key for `github-actions@soufianesys.iam.gserviceaccount.com`  # pragma: allowlist secret
+- **Variables**:
+  - `GCP_PROJECT_ID` = `soufianesys`
+  - `GCP_REGION` = `us-central1`
 
 ## Model Versioning
 
 - **Versioning scheme**: Semantic versioning (v1, v2, v3, etc.)
-- **Storage**: GCS folder structure `gs://ml-models-{env}/{model-name}/v{N}/`
-- **Version propagation**: Passed to prediction script via Cloud Scheduler job parameters
-- **Registry**: Cloud Function tracks all versions in BigQuery
+- **Storage**: GCS folder structure `gs://mlsys-models-{env}/{model-name}/v{N}/model.pkl`
+- **Version propagation**: Passed as query parameter to `/predict` endpoint
+- **Registry**: `/model-registry` endpoint scans GCS and tracks all versions in BigQuery `mlsys_{env}.model_registry` table
 
 ## Best Practices
 
@@ -273,16 +326,20 @@ If only infra/docs/tests change, Terraform runs but Docker build is skipped.
 - Data engineering team manages table schemas and lifecycle
 
 ### GCS I/O
-- Model artifacts stored in versioned folders
-- Use `gcs_get(bucket_name, blob_path)` for downloads
-- Use `gcs_put(obj, bucket_name, blob_path)` for uploads
-- Bucket names vary by environment: `ml-models-{env}`
+- Model artifacts stored in versioned folders: `{model-name}/v{N}/model.pkl`
+- Use `gcs_get_pickle(bucket_name, blob_path)` for downloading pickled models
+- Use `gcs_put_pickle(obj, bucket_name, blob_path)` for uploading pickled models
+- Use `gcs_get(bucket_name, blob_path)` for raw bytes (e.g., `metadata.json`)
+- Use `gcs_put(bytes, bucket_name, blob_path)` for raw bytes
+- Use `gcs_list_blobs(bucket_name)` to list all objects
+- Bucket names vary by environment: `mlsys-models-{env}`
 
 ### Notebook Development
 - Use notebooks for EDA and model experimentation only
-- Keep production code in `src/mlsys/` and `cloud_runs/`
-- Use nbstripout to avoid committing metadata
-- Follow notebook naming convention (see `notebooks/README.md`)
+- Keep production code in `src/mlsys/`, `api/`, and `scripts/`
+- nbstripout automatically strips metadata but preserves outputs (configured in `.pre-commit-config.yaml`)
+- Follow notebook naming convention: `{model-name}-{purpose}.ipynb` (see `notebooks/README.md`)
+- See `notebooks/titanic-survival-example.ipynb` for complete example workflow
 
 ### Testing
 - Pre-commit hooks run automatically on commit
@@ -293,21 +350,21 @@ If only infra/docs/tests change, Terraform runs but Docker build is skipped.
 ## Common Workflows
 
 ### Adding a New Model
-1. Create Jupyter notebook for model development
-2. Train and evaluate model using latest data from BigQuery
-3. Upload model artifacts to GCS: `gs://ml-models-dev/{model-name}/v1/`
-4. Create Cloud Scheduler job in Terraform (in `infra/modules/mlsys/cloud_scheduler.tf`)
-5. Add service account in Terraform if model-specific permissions needed
-6. Test in dev environment
-7. Promote to staging, then prod
+1. **Develop in Jupyter**: Create notebook in `notebooks/{model-name}-{purpose}.ipynb`
+2. **Train model**: Use `bq_get()` to fetch training data, train with scikit-learn
+3. **Upload to GCS**: Use `gcs_put_pickle(model, GCS_BUCKET_MODELS_DEV, "{model-name}/v1/model.pkl")`
+4. **Register model**: Call `/model-registry?env=dev` endpoint to scan and register
+5. **Test predictions**: Call `/predict?env=dev&input_table=...&output_table=...&model_name={model-name}&model_version=v1`
+6. **Promote**: Upload to staging/prod buckets and repeat registration/testing
+
+**Note**: Current `/predict` endpoint is hardcoded for Titanic model. Generalization needed for other models.
 
 ### Deploying Infrastructure Changes
-1. Make changes in `infra/` directory
-2. Create PR (triggers Terraform plan for dev)
-3. Review plan in PR checks
-4. Merge to main (auto-applies to dev)
-5. Manually trigger staging workflow
-6. Review staging, then manually trigger prod workflow
+1. **Make changes** in `infra/` directory (e.g., add BigQuery table, modify IAM)
+2. **Create PR** - triggers Terraform format, validate, and plan for all environments
+3. **Review plan** in PR checks (GitHub Actions summary)
+4. **Merge to main** - auto-applies Terraform changes to dev environment
+5. **Manual promotion**: Manually run Terraform apply for staging, then prod (currently manual process)
 
 ### Updating Dependencies
 ```bash
@@ -341,10 +398,36 @@ git commit -m "Add <package-name> dependency"
 - Ensure GCP credentials are properly configured
 - Review Terraform plan before apply
 
+## API Usage Examples
+
+### Making Predictions
+```bash
+# Dev environment
+curl "https://mlsys-dev-xxxxxx.run.app/predict?env=dev&input_table=soufianesys.titanic.test&output_table=soufianesys.titanic.predictions&model_name=titanic-survival&model_version=v1"
+
+# Prod environment
+curl "https://mlsys-prod-xxxxxx.run.app/predict?env=prod&input_table=soufianesys.titanic.test&output_table=soufianesys.titanic.predictions&model_name=titanic-survival&model_version=v1"
+```
+
+### Registering Models
+```bash
+# Scan dev bucket and register all models
+curl "https://mlsys-dev-xxxxxx.run.app/model-registry?env=dev"
+
+# Scan prod bucket
+curl "https://mlsys-prod-xxxxxx.run.app/model-registry?env=prod"
+```
+
+### Health Check
+```bash
+curl "https://mlsys-dev-xxxxxx.run.app/health"
+```
+
 ## References
 
-- [README.md](./README.md) - Project overview and quick start
-- [notebooks/README.md](./notebooks/README.md) - Notebook development guide
-- [cloud_funcs/model_registry/README.md](./cloud_funcs/model_registry/README.md) - Model registry documentation
-- [pyproject.toml](./pyproject.toml) - Package configuration
-- [.pre-commit-config.yaml](./.pre-commit-config.yaml) - Code quality hooks
+- [README.md](./README.md) - Project overview, setup instructions, quick start
+- [notebooks/README.md](./notebooks/README.md) - Comprehensive notebook development guide
+- [notebooks/titanic-survival-example.ipynb](./notebooks/titanic-survival-example.ipynb) - Complete example workflow
+- [pyproject.toml](./pyproject.toml) - Package configuration and dependencies
+- [.pre-commit-config.yaml](./.pre-commit-config.yaml) - Code quality hooks configuration
+- [.env.example](./.env.example) - Environment variable template

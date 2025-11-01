@@ -15,7 +15,8 @@ RUN uv sync --locked --no-install-project --no-dev
 
 # Install project now
 COPY src ./src
-COPY cloud_runs ./cloud_runs
+COPY scripts ./scripts
+COPY api ./api
 RUN uv sync --locked --no-dev
 
 # Runtime stage: it is important to use same python version as in pyproject.toml and the builder
@@ -26,10 +27,15 @@ WORKDIR /app
 # Copy virtual environment and application
 COPY --from=builder /app/.venv ./.venv
 COPY --from=builder /app/src ./src
-COPY --from=builder /app/cloud_runs ./cloud_runs
+COPY --from=builder /app/scripts ./scripts
+COPY --from=builder /app/api ./api
 
 # Environment variables
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1
 
-# No default CMD - let Cloud Run Jobs specify the command
+# Expose port for Cloud Run (Cloud Run sets PORT env var automatically)
+EXPOSE 8080
+
+# Run FastAPI server with uvicorn
+CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8080"]

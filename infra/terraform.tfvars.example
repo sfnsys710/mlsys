@@ -4,4 +4,4 @@
 
 # GCP Project Configuration
 project_id = "soufianesys"
-region     = "us-central1"
+region     = "europe-southwest1"
