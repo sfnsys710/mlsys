@@ -7,13 +7,13 @@ ML system for machine learning development and deployment on GCP
 **Purpose**: End-to-end ML platform for developing models locally and deploying them as HTTP services on Google Cloud Platform.
 
 **Key Technologies**:
-- Python 3.12 with uv package manager (fast, modern dependency management)
-- ML: scikit-learn, pandas, numpy, matplotlib
-- GCP: BigQuery, Cloud Storage, Cloud Run Service, Artifact Registry
-- Web: FastAPI (HTTP endpoints for predictions and model registry)
-- Infrastructure: Terraform 1.10.0
-- CI/CD: GitHub Actions with smart change detection
-- Containers: Docker multi-stage builds
+- **Google Cloud Platform (GCP)**: BigQuery, Cloud Storage, Cloud Run Service, Artifact Registry
+- **Infrastructure**: Terraform 1.10.0
+- **CI/CD**: GitHub Actions with smart change detection
+- **Containers**: Docker multi-stage builds
+- **Python** 3.12 with uv package manager (fast, modern dependency management)
+- **ML**: scikit-learn, pandas, numpy, matplotlib
+- **Web**: FastAPI (HTTP endpoints for predictions and model registry)
 
 **GCP Project**: `<your-gcp-project-id>` (single project, resources suffixed with `-dev`, `-staging`, `-prod`)
 
