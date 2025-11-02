@@ -1,0 +1,125 @@
+name: Staging Deployment
+
+on:
+  workflow_dispatch:  # Manual trigger only (trigger from main branch after merge)
+
+# Prevent concurrent staging deployments
+concurrency:
+  group: staging-deployment
+  cancel-in-progress: false
+
+jobs:
+  get-versions:
+    name: Extract versions
+    runs-on: ubuntu-latest
+    outputs:
+      mlsys_version: ${{ steps.extract-versions.outputs.mlsys_version }}
+      tf_version: ${{ steps.extract-versions.outputs.tf_version }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Extract versions
+        id: extract-versions
+        run: |
+          mlsys_version=$(grep -m 1 '^version = ' pyproject.toml | sed 's/version = "\(.*\)"/\1/')
+          tf_version=$(cat infra/.terraform-version)
+          echo "mlsys_version = $mlsys_version"
+          echo "tf_version = $tf_version"
+          echo "mlsys_version=$mlsys_version" >> $GITHUB_OUTPUT
+          echo "tf_version=$tf_version" >> $GITHUB_OUTPUT
+
+  terraform-staging:
+    name: Terraform Plan & Apply (staging)
+    needs: get-versions
+    runs-on: ubuntu-latest
+    environment: gcp
+    defaults:
+      run:
+        working-directory: infra/envs/staging
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ needs.get-versions.outputs.tf_version }}
+
+      - name: Authenticate to Google Cloud
+        run: |
+          echo '${{ secrets.GCP_SA_KEY }}' > ${HOME}/gcp-key.json
+          gcloud auth activate-service-account --key-file=${HOME}/gcp-key.json
+          gcloud config set project ${{ vars.GCP_PROJECT_ID }}
+          echo "GOOGLE_APPLICATION_CREDENTIALS=${HOME}/gcp-key.json" >> $GITHUB_ENV
+
+      - name: Terraform Init
+        run: terraform init
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
+
+      - name: Terraform Plan
+        run: |
+          terraform plan -out=tfplan \
+            -var="project_id=${{ vars.GCP_PROJECT_ID }}" \
+            -var="region=${{ vars.GCP_REGION }}"
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve tfplan
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
+
+      - name: Cleanup
+        if: always()
+        run: rm -f ${HOME}/gcp-key.json
+
+  build-deploy-staging:
+    name: Build, push and deploy to Cloud Run (staging)
+    needs:
+      - get-versions
+      - terraform-staging
+    runs-on: ubuntu-latest
+    environment: gcp
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Authenticate to Google Cloud
+        run: |
+          echo '${{ secrets.GCP_SA_KEY }}' > ${HOME}/gcp-key.json
+          gcloud auth activate-service-account --key-file=${HOME}/gcp-key.json
+          gcloud config set project ${{ vars.GCP_PROJECT_ID }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ vars.GCP_REGION }}-docker.pkg.dev
+
+      - name: Set image tags
+        run: |
+          VERSION="${{ needs.get-versions.outputs.mlsys_version }}"
+          echo "VERSION=${VERSION}" >> $GITHUB_ENV
+          echo "IMAGE_TAG=${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/mlsys-staging/mlsys-staging:${VERSION}" >> $GITHUB_ENV
+          echo "IMAGE_TAG_LATEST=${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/mlsys-staging/mlsys-staging:latest" >> $GITHUB_ENV
+
+      - name: Build and Push Docker Image
+        run: |
+          docker build -t ${{ env.IMAGE_TAG }} -t ${{ env.IMAGE_TAG_LATEST }} .
+          docker push ${{ env.IMAGE_TAG }}
+          docker push ${{ env.IMAGE_TAG_LATEST }}
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy mlsys-staging \
+            --image="${{ env.IMAGE_TAG }}" \
+            --region=${{ vars.GCP_REGION }} \
+            --platform=managed \
+            --service-account=mlsys-sa-staging@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com \
+            --allow-unauthenticated
+
+      - name: Cleanup
+        if: always()
+        run: rm -f ${HOME}/gcp-key.json

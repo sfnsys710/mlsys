@@ -35,8 +35,20 @@ GitHub PR → CI/CD → Cloud Run Service (FastAPI)
 
 ### Progressive Deployment
 ```
-dev (automatic on PR push) → staging (manual) → prod (manual)
+dev (automatic on PR push) → staging (manual from main) → prod (manual from main)
 ```
+
+**Deployment strategy**:
+- **Dev**: Automatically deploys on every PR push (opened, synchronize, reopened)
+- **Staging**: Manual trigger only - After merging to main, manually trigger deployment from main branch
+- **Prod**: Manual trigger only - After merging to main, manually trigger deployment from main branch
+
+**How to deploy to staging/prod**:
+1. Merge your PR to the main branch
+2. Go to GitHub Actions → Select workflow (Staging/Production Deployment)
+3. Click "Run workflow" → Select branch: **main** → Click "Run workflow"
+
+**Versioning**: Update `version` in `pyproject.toml` before deploying to staging/prod. This version is used for Docker image tags (e.g., `0.2.0` → `mlsys-staging:0.2.0`).
 
 ## First-Time Setup
 
@@ -209,12 +221,23 @@ curl "https://mlsys-dev-xxxxx.run.app/predict?env=dev&input_table=<your-gcp-proj
 
 ### 4. Promote to Staging/Prod
 
-Currently manual - run Terraform and redeploy:
-```bash
-cd infra/envs/staging
-terraform apply -var="project_id=<your-gcp-project-id>" -var="region=<your-gcp-region>"
-# Then rebuild and deploy Docker image with staging tag
-```
+After merging to main, manually trigger deployment:
+
+**Steps**:
+1. **Merge PR to main**: Ensure your changes are merged to the main branch
+2. **Trigger Staging Deployment**:
+   - Go to GitHub Actions → "Staging Deployment"
+   - Click "Run workflow" → Select branch: **main** → Click "Run workflow"
+   - Uses version from `pyproject.toml` for Docker image tags (e.g., `mlsys-staging:0.2.0`)
+   - Runs Terraform and deploys to staging environment
+3. **Test in Staging**: Verify everything works in staging environment
+4. **Trigger Production Deployment**:
+   - Go to GitHub Actions → "Production Deployment"
+   - Click "Run workflow" → Select branch: **main** → Click "Run workflow"
+   - Uses version from `pyproject.toml` for Docker image tags (e.g., `mlsys-prod:0.2.0`)
+   - Runs Terraform and deploys to production environment
+
+**Important**: Always deploy to staging first and test before deploying to production.
 
 ## Project Structure
 
@@ -245,7 +268,9 @@ mlsys/
 │   ├── modules/mlsys/       # Reusable infrastructure module
 │   └── envs/                # Environment configs (dev, staging, prod)
 ├── .github/workflows/       # CI/CD automation
-│   └── pr.yml               # PR checks and dev deployment
+│   ├── pr.yml               # PR checks and dev deployment
+│   ├── staging.yml          # Staging deployment (push to main or manual)
+│   └── prod.yml             # Production deployment (push to main or manual)
 ├── Dockerfile               # Multi-stage container for Cloud Run
 ├── pyproject.toml           # Python dependencies (uv), pre-commit hooks and pytest configs
 ├── .pre-commit-config.yaml  # Code quality hooks
@@ -271,6 +296,32 @@ uv run pre-commit install                    # Install hooks
 uv run pre-commit run --all-files            # Run all hooks manually
 uv run pre-commit run ruff --all-files       # Run specific hook
 ```
+
+### Versioning and Releases
+
+The project uses semantic versioning defined in `pyproject.toml`. This version is used for Docker image tags in staging and production deployments.
+
+**When to bump the version**:
+- **Patch** (e.g., `0.2.0` → `0.2.1`): Bug fixes, minor updates
+- **Minor** (e.g., `0.2.0` → `0.3.0`): New features, backward-compatible changes
+- **Major** (e.g., `0.2.0` → `1.0.0`): Breaking changes, major refactoring
+
+**How to bump the version**:
+```bash
+# 1. Update version in pyproject.toml
+# Change: version = "0.2.0" to version = "0.3.0"
+
+# 2. Commit the version bump
+git add pyproject.toml
+git commit -m "Bump version to 0.3.0"
+
+# 3. Merge to main (triggers staging/prod deployments with new version tags)
+# Docker images will be tagged as:
+#   - mlsys-staging:0.3.0 and mlsys-staging:latest
+#   - mlsys-prod:0.3.0 and mlsys-prod:latest
+```
+
+**Best practice**: Bump the version before merging to main if the changes warrant a new release to staging/prod.
 
 ### Infrastructure (Terraform)
 
@@ -431,12 +482,39 @@ curl "https://mlsys-dev-xxxxx.run.app/health"
 - Automatic dev deployment on PR push (opened, synchronize, reopened)
 - Clear CI/CD logs showing what was deployed
 
-### Manual Staging/Prod Deployment
+### Staging/Prod Deployment (Manual Only)
 
-Currently manual process:
-1. Update infrastructure: `terraform apply` in `infra/envs/{env}/`
-2. Build and push Docker image with version tag
-3. Update Cloud Run service to use new image
+**Trigger**: Manual only via GitHub Actions UI (must be triggered from main branch)
+
+**Staging Workflow** (`.github/workflows/staging.yml`):
+1. Extract version from `pyproject.toml` and Terraform version from `.terraform-version`
+2. Run Terraform plan & apply for staging environment
+3. Build Docker image with version tags:
+   - `mlsys-staging:{version}` (e.g., `mlsys-staging:0.2.0`)
+   - `mlsys-staging:latest`
+4. Push to Artifact Registry
+5. Deploy to Cloud Run staging
+
+**Production Workflow** (`.github/workflows/prod.yml`):
+1. Extract version from `pyproject.toml` and Terraform version from `.terraform-version`
+2. Run Terraform plan & apply for production environment
+3. Build Docker image with version tags:
+   - `mlsys-prod:{version}` (e.g., `mlsys-prod:0.2.0`)
+   - `mlsys-prod:latest`
+4. Push to Artifact Registry
+5. Deploy to Cloud Run production
+
+**How to trigger**:
+1. Merge changes to main branch
+2. Go to GitHub Actions → Select workflow (Staging or Production Deployment)
+3. Click "Run workflow" → Select branch: **main** → Click "Run workflow"
+
+**Benefits**:
+- Version-based image tagging from `pyproject.toml` (no commit SHA)
+- Consistent versioning across environments
+- Controlled deployments - deploy only when ready
+- Always deploys both infrastructure and code (no change detection needed)
+- Ensures staging is tested before production deployment
 
 ## Infrastructure (Terraform)
 
