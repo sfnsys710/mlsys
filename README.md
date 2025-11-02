@@ -1,6 +1,6 @@
 # mlsys
 
-ML System for training models in Jupyter notebooks and deploying to GCP with HTTP-based predictions.
+ML system for machine learning development and deployment on GCP
 
 ## Overview
 
@@ -35,24 +35,7 @@ GitHub PR → CI/CD → Cloud Run Service (FastAPI)
 
 ### Progressive Deployment
 ```
-dev (automatic on PR merge) → staging (manual) → prod (manual + confirmation)
-```
-
-## Quick Start
-
-```bash
-# 1. Install dependencies
-uv sync
-
-# 2. Install pre-commit hooks
-uv run pre-commit install
-
-# 3. Set up environment variables
-cp .env.example .env
-# Edit .env with your GCP project details
-
-# 4. Launch Jupyter for model development
-uv run jupyter lab
+dev (automatic on PR push) → staging (manual) → prod (manual)
 ```
 
 ## First-Time Setup
@@ -65,17 +48,20 @@ uv run jupyter lab
 - `gcloud` CLI installed and authenticated
 - Owner or Editor role on the GCP project
 - Terraform 1.10.0 installed
+- uv package manager installed
 
-### 1. Enable Required GCP APIs
+### 1. Local Setup
 
 ```bash
-gcloud services enable compute.googleapis.com
-gcloud services enable storage.googleapis.com
-gcloud services enable bigquery.googleapis.com
-gcloud services enable artifactregistry.googleapis.com
-gcloud services enable run.googleapis.com
-gcloud services enable cloudbuild.googleapis.com
-gcloud services enable iam.googleapis.com
+# 1. Install dependencies
+uv sync --group dev --group pre-commit
+
+# 2. Install pre-commit hooks
+uv run pre-commit install
+
+# 3. Set up environment variables
+cp .env.example .env
+# Edit .env with your GCP project details
 ```
 
 ### 2. Create Terraform State Buckets
@@ -99,12 +85,42 @@ gcloud storage buckets update gs://mlsys-terraform-state-prod --versioning
 gcloud iam service-accounts create github-actions \
   --display-name="GitHub Actions Service Account"
 
-# Grant necessary roles
+# Grant necessary roles for CI/CD operations
+# Terraform state management
 gcloud projects add-iam-policy-binding <your-gcp-project-id> \
   --member="serviceAccount:github-actions@<your-gcp-project-id>.iam.gserviceaccount.com" \
-  --role="roles/owner"
+  --role="roles/storage.admin"
 
-# Generate key (store in GitHub Secrets as "SA")
+# Artifact Registry (Docker images)
+gcloud projects add-iam-policy-binding <your-gcp-project-id> \
+  --member="serviceAccount:github-actions@<your-gcp-project-id>.iam.gserviceaccount.com" \
+  --role="roles/artifactregistry.writer"
+
+# Cloud Run deployment
+gcloud projects add-iam-policy-binding <your-gcp-project-id> \
+  --member="serviceAccount:github-actions@<your-gcp-project-id>.iam.gserviceaccount.com" \
+  --role="roles/run.admin"
+
+# Service Account management (for Cloud Run)
+gcloud projects add-iam-policy-binding <your-gcp-project-id> \
+  --member="serviceAccount:github-actions@<your-gcp-project-id>.iam.gserviceaccount.com" \
+  --role="roles/iam.serviceAccountUser"
+
+# IAM management (for Terraform)
+gcloud projects add-iam-policy-binding <your-gcp-project-id> \
+  --member="serviceAccount:github-actions@<your-gcp-project-id>.iam.gserviceaccount.com" \
+  --role="roles/iam.securityAdmin"
+
+# BigQuery, GCS, and API management (for Terraform)
+gcloud projects add-iam-policy-binding <your-gcp-project-id> \
+  --member="serviceAccount:github-actions@<your-gcp-project-id>.iam.gserviceaccount.com" \
+  --role="roles/bigquery.admin"
+
+gcloud projects add-iam-policy-binding <your-gcp-project-id> \
+  --member="serviceAccount:github-actions@<your-gcp-project-id>.iam.gserviceaccount.com" \
+  --role="roles/serviceusage.serviceUsageAdmin"
+
+# Generate key (store in GitHub Secrets as GCP_SA_KEY)
 gcloud iam service-accounts keys create github-actions-key.json \
   --iam-account=github-actions@<your-gcp-project-id>.iam.gserviceaccount.com
 ```
@@ -114,7 +130,7 @@ gcloud iam service-accounts keys create github-actions-key.json \
 In your GitHub repository settings:
 
 **Secrets** (Settings → Secrets and variables → Actions → Secrets):
-- `SA`: Contents of `github-actions-key.json`
+- `GCP_SA_KEY`: Contents of `github-actions-key.json`
 
 **Variables** (Settings → Secrets and variables → Actions → Variables):
 - `GCP_PROJECT_ID`: Your GCP project ID (e.g., `<your-gcp-project-id>`)
@@ -127,10 +143,10 @@ In your GitHub repository settings:
 ```bash
 # Initialize and deploy dev environment
 cd infra/envs/dev
-terraform init -backend-config="bucket=mlsys-terraform-state-dev"
+terraform init
 terraform apply -var="project_id=<your-gcp-project-id>" -var="region=<your-gcp-region>"
 
-# Repeat for staging and prod as needed
+# Repeat for staging if needed (not recommended, staging and prod supposed to mangened automaticaly by CI/CD)
 ```
 
 ✅ **Setup complete!** You can now develop models and deploy to GCP.
@@ -158,18 +174,9 @@ model.fit(X_train, y_train)
 gcs_put_pickle(model, GCS_BUCKET_MODELS_DEV, "titanic-survival/v1/model.pkl")
 ```
 
-**Naming convention for notebooks**: `{model-name}-{purpose}.ipynb`
-- Example: `churn-prediction-training.ipynb`
-
 ### 2. Create Pull Request
 
-```bash
-git checkout -b feature/my-model
-git add .
-git commit -m "Add my model"
-git push origin feature/my-model
-gh pr create --title "Add my model" --body "Description"
-```
+Create a new branch, commit your changes, and create a pull request.
 
 **What happens automatically**:
 - Pre-commit checks run (ruff, detect-secrets, nbstripout)
@@ -180,7 +187,14 @@ gh pr create --title "Add my model" --body "Description"
 
 ### 3. Test in Dev Environment
 
-Once PR is merged, your changes are automatically deployed to dev:
+On each push to a PR that targets the main branch, the following happens:
+- Terraform is deployed to dev
+- Docker image is built and deployed to dev
+- Cloud Run service is updated
+
+**What you need to do**:
+- Review the changes in the PR
+- Test the model predictions in the PR
 
 ```bash
 # Register the model
@@ -234,7 +248,6 @@ mlsys/
 uv sync                          # Install/update dependencies
 uv add <package>                 # Add new dependency
 uv run python script.py          # Run Python script
-uv run jupyter lab               # Launch Jupyter
 ```
 
 ### Code Quality
@@ -249,7 +262,7 @@ uv run pre-commit run ruff --all-files       # Run specific hook
 
 ```bash
 cd infra/envs/dev
-terraform init -backend-config="bucket=mlsys-terraform-state-dev"
+terraform init
 terraform plan -var="project_id=<your-gcp-project-id>" -var="region=<your-gcp-region>"
 terraform apply -var="project_id=<your-gcp-project-id>" -var="region=<your-gcp-region>"
 terraform output                              # Show outputs
@@ -261,16 +274,6 @@ terraform output                              # Show outputs
 docker build -t mlsys:latest .
 docker run -p 8080:8080 mlsys:latest
 # Test: curl http://localhost:8080/health
-```
-
-### Git Workflow
-
-```bash
-git checkout -b feature/my-feature
-git add .
-git commit -m "Add feature"        # Triggers pre-commit hooks
-git push origin feature/my-feature
-gh pr create --title "..." --body "..."
 ```
 
 ## API Endpoints
@@ -298,7 +301,7 @@ curl "https://mlsys-dev-xxxxx.run.app/predict?env=dev&input_table=<your-gcp-proj
 4. Adds metadata (timestamp, model name, version)
 5. Pushes results to BigQuery output table
 
-⚠️ **Note**: Currently hardcoded for Titanic model (expects `PassengerId`, produces `Survived`). Needs generalization for other models.
+⚠️ **Note**: Currently hardcoded for Titanic model (expects `PassengerId`, produces `Survived` with prediction probability). See `scripts/predict.py:80-86` for implementation details. Generalization needed for other models.
 
 ### `GET /model-registry`
 
@@ -343,11 +346,9 @@ curl "https://mlsys-dev-xxxxx.run.app/health"
 - **Optional**: `gs://mlsys-models-dev/titanic-survival/v1/metadata.json`
 
 ### Notebooks
-- **Pattern**: `{model-name}-{purpose}.ipynb`
+- **Pattern**: `{usecase}-{purpose}.ipynb`
 - **Examples**:
   - `titanic-survival-example.ipynb`
-  - `churn-prediction-eda.ipynb`
-  - `fraud-detection-training.ipynb`
 
 ## CI/CD Pipeline
 
@@ -364,7 +365,7 @@ curl "https://mlsys-dev-xxxxx.run.app/health"
 
 **Benefits**:
 - Fast feedback (only deploys what changed)
-- Automatic dev deployment on merge
+- Automatic dev deployment on PR push (opened, synchronize, reopened)
 - Clear CI/CD logs showing what was deployed
 
 ### Manual Staging/Prod Deployment
@@ -463,33 +464,58 @@ Key variables (see `.env.example` for full template):
 
 ```bash
 # GCP Configuration
-GCP_PROJECT_ID=<your-gcp-project-id>
+# Set these via GitHub secrets/variables for CI/CD
+# For local development, copy .env.example to .env and fill in your values
+GCP_PROJECT_ID=<your-gcp-project>
 GCP_REGION=<your-gcp-region>
 
-# GCS Model Buckets (defaults in settings.py)
+# GCS Model Buckets
+# Default values are set in settings.py, override if needed
 GCS_BUCKET_MODELS_DEV=mlsys-models-dev
 GCS_BUCKET_MODELS_STAGING=mlsys-models-staging
 GCS_BUCKET_MODELS_PROD=mlsys-models-prod
+
+# Terraform state buckets
+TF_STATE_BUCKET_DEV=mlsys-terraform-state-dev
+TF_STATE_BUCKET_STAGING=mlsys-terraform-state-staging
+TF_STATE_BUCKET_PROD=mlsys-terraform-state-prod
+
+# BigQuery dataset
+BQ_DATASET=mlsys
+
+# Note: BigQuery table paths are NOT configured here
+# They are passed explicitly to bq_get() and bq_put() functions
+# Example: bq_get("SELECT * FROM project.dataset.table")
 ```
 
 ## Best Practices
 
 ### BigQuery
 - Always pass full table paths: `project.dataset.table`
-- Use `bq_get(query)` for reads (returns DataFrame)
-- Use `bq_put(df, table_id, write_disposition)` for writes
+- Use `bq_get(query: str) -> pd.DataFrame` for reads
+  - Executes SQL query and returns results as DataFrame
+  - Example: `df = bq_get("SELECT * FROM project.dataset.table LIMIT 10")`
+- Use `bq_put(df: pd.DataFrame, table_id: str, write_disposition: str = "WRITE_APPEND")` for writes
+  - Write dispositions: `WRITE_APPEND`, `WRITE_TRUNCATE`, `WRITE_EMPTY`
+  - Example: `bq_put(df, "project.dataset.table", "WRITE_TRUNCATE")`
 
 ### GCS
 - Store models in versioned folders: `{model-name}/v{N}/model.pkl`
-- Use `gcs_get_pickle()` / `gcs_put_pickle()` for pickled models
-- Use `gcs_get()` / `gcs_put()` for raw bytes (e.g., JSON metadata)
-- Use `gcs_list_blobs()` to list bucket contents
+- Use `gcs_get_pickle(bucket_name: str, blob_path: str) -> Any` for downloading pickled models
+  - Downloads and deserializes pickled objects
+  - Example: `model = gcs_get_pickle("mlsys-models-dev", "titanic-survival/v1/model.pkl")`
+- Use `gcs_put_pickle(obj: Any, bucket_name: str, blob_path: str)` for uploading pickled models
+  - Serializes and uploads objects using joblib
+  - Example: `gcs_put_pickle(model, "mlsys-models-dev", "titanic-survival/v1/model.pkl")`
+- Use `gcs_get(bucket_name: str, blob_path: str) -> bytes` for raw bytes (e.g., JSON metadata)
+- Use `gcs_put(content: bytes | str, bucket_name: str, blob_path: str)` for uploading raw bytes/strings
+- Use `gcs_list_blobs(bucket_name: str) -> list[Blob]` to list all blobs in a bucket
 
 ### Notebook Development
 - Use notebooks for EDA and experimentation only
 - Keep production code in `src/mlsys/`, `api/`, `scripts/`
 - Extract reusable functions to modules
-- Follow naming convention: `{model-name}-{purpose}.ipynb`
+- Follow naming convention: `{usecase}-{purpose}.ipynb`
 - See `notebooks/titanic-survival-example.ipynb` for complete example
 
 ### Testing
@@ -503,12 +529,6 @@ GCS_BUCKET_MODELS_PROD=mlsys-models-prod
 - **detect-secrets**: Add `# pragma: allowlist secret` for false positives
 - **ruff**: Fix code or add `# noqa: <code>` if intentional
 - **nbstripout**: Ensure notebooks are in proper format
-
-### UV Package Issues
-```bash
-uv cache clean
-rm uv.lock && uv sync
-```
 
 ### Docker Build Issues
 - Verify Python version consistency (3.12 everywhere)
@@ -527,31 +547,8 @@ terraform init -reconfigure -backend-config="bucket=mlsys-terraform-state-dev"
 terraform init -upgrade
 ```
 
-### BigQuery Authentication
-```bash
-# Via gcloud
-gcloud auth application-default login
-
-# Or set environment variable
-export GOOGLE_APPLICATION_CREDENTIALS="/path/to/key.json"
-```
-
-## Project Status
-
-✅ **Complete** - All core components implemented:
-- Core Python package with BigQuery/GCS utilities
-- Jupyter notebook development workflow with example
-- Terraform infrastructure for all environments
-- CI/CD with smart change detection
-- Docker containerization with multi-stage builds
-- FastAPI service with prediction and model registry endpoints
-- Pre-commit hooks for code quality
-- Progressive deployment strategy
-
 ## License
 
-[Add your license here]
+MIT License
 
-## Contributing
-
-[Add contribution guidelines here]
+**Happy ML dev and deployment with MLSys**
