@@ -1,0 +1,30 @@
+# CODEOWNERS file
+#
+# This file defines individuals or teams that are responsible for code in this repository.
+# Code owners are automatically requested for review when someone opens a pull request
+# that modifies code that they own.
+#
+# For more information, see:
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default owner for everything in the repo
+* @sfnsys710
+
+# Infrastructure and Terraform
+/infra/ @sfnsys710
+/.github/workflows/ @sfnsys710
+
+# Core Python package
+/src/ @sfnsys710
+
+# API and scripts
+/api/ @sfnsys710
+/scripts/ @sfnsys710
+
+# Tests
+/tests/ @sfnsys710
+
+# Configuration files
+/pyproject.toml @sfnsys710
+/Dockerfile @sfnsys710
+/.pre-commit-config.yaml @sfnsys710
