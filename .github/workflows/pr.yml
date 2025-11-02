@@ -151,7 +151,8 @@ jobs:
   terraform-dev:
     name: Terraform Plan & Apply (dev)
     needs:
-      - get-versions-changes
+      - pre-commit
+      - pytest
       - terraform-checks
     if: needs.get-versions-changes.outputs.infra_changed == 'true'
     runs-on: ubuntu-latest
