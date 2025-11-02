@@ -221,10 +221,11 @@ jobs:
 
       - name: Deploy to Cloud Run
         run: |
-          gcloud run deploy mlsys-service-dev \
+          gcloud run deploy mlsys-dev \
             --image="${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/mlsys-dev/mlsys-dev:${SHORT_SHA}" \
             --region=${{ vars.GCP_REGION }} \
             --platform=managed \
+            --service-account=mlsys-sa-dev@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com \
             --allow-unauthenticated
 
       - name: Cleanup
