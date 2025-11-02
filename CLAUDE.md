@@ -305,7 +305,7 @@ If only docs/tests change, workflow skips both Terraform and Docker steps.
 
 ### GitHub Secrets and Variables
 **Environment**: `gcp` (single environment for all deployments)
-- **Secret**: `SA` - GCP service account JSON key for `github-actions@soufianesys.iam.gserviceaccount.com`  # pragma: allowlist secret
+- **Secret**: `GCP_SA_KEY` - GCP service account JSON key for `mlsys-github-actions@soufianesys.iam.gserviceaccount.com`  # pragma: allowlist secret
 - **Variables**:
   - `GCP_PROJECT_ID` = `soufianesys`
   - `GCP_REGION` = `us-central1`

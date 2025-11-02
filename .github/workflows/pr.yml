@@ -168,7 +168,10 @@ jobs:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
 
       - name: Terraform Plan
-        run: terraform plan -out=tfplan
+        run: |
+          terraform plan -out=tfplan \
+            -var="project_id=${{ vars.GCP_PROJECT_ID }}" \
+            -var="region=${{ vars.GCP_REGION }}"
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
 
@@ -196,7 +199,7 @@ jobs:
 
       - name: Authenticate to Google Cloud
         run: |
-          echo '${{ secrets.SA }}' > ${HOME}/gcp-key.json
+          echo '${{ secrets.GCP_SA_KEY }}' > ${HOME}/gcp-key.json
           gcloud auth activate-service-account --key-file=${HOME}/gcp-key.json
           gcloud config set project ${{ vars.GCP_PROJECT_ID }}
 
