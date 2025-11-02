@@ -15,19 +15,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Block external PRs from consuming any resources
-  authorize:
-    name: Authorize PR
-    runs-on: ubuntu-latest
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    steps:
-      - name: Authorized
-        run: echo "PR authorized to run workflows"
-
-  analyze-changes:
+  get-versions-changes:
     name: Analyze versions and changes
     runs-on: ubuntu-latest
-    needs: authorize
     outputs:
       mlsys_version: ${{ steps.extract-versions.outputs.mlsys_version }}
       tf_version: ${{ steps.extract-versions.outputs.tf_version }}
@@ -58,6 +48,7 @@ jobs:
               - infra/**
             code:
               - src/**
+              - api/**
               - scripts/**
               - pyproject.toml
               - uv.lock
@@ -74,7 +65,7 @@ jobs:
 
   pre-commit:
     name: Pre-commit
-    needs: analyze-changes
+    needs: get-versions-changes
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -94,9 +85,31 @@ jobs:
       - name: Run pre-commit hooks
         run: uv run --no-sync pre-commit run --all-files
 
+  pytest:
+    name: Run tests
+    needs: get-versions-changes
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Set up Python
+        run: uv python install
+
+      - name: Install dependencies
+        run: |
+          uv sync --group test
+          uv tree --group test
+
+      - name: Run pytest
+        run: uv run pytest -v
+
   terraform-checks:
     name: Terraform checks
-    needs: analyze-changes
+    needs: get-versions-changes
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -105,7 +118,7 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: ${{ needs.analyze-changes.outputs.tf_version }}
+          terraform_version: ${{ needs.get-versions-changes.outputs.tf_version }}
 
       - name: Terraform Format Check
         run: terraform fmt -check -recursive
@@ -138,9 +151,9 @@ jobs:
   terraform-dev:
     name: Terraform Plan & Apply (dev)
     needs:
-      - analyze-changes
+      - get-versions-changes
       - terraform-checks
-    if: needs.analyze-changes.outputs.infra_changed == 'true'
+    if: needs.get-versions-changes.outputs.infra_changed == 'true'
     runs-on: ubuntu-latest
     environment: gcp
     defaults:
@@ -153,7 +166,7 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: ${{ needs.analyze-changes.outputs.tf_version }}
+          terraform_version: ${{ needs.get-versions-changes.outputs.tf_version }}
 
       - name: Authenticate to Google Cloud
         run: |
@@ -187,10 +200,11 @@ jobs:
   build-deploy-dev:
     name: Build, push and deploy to Cloud Run (dev)
     needs:
-      - analyze-changes
+      - get-versions-changes
       - pre-commit
+      - pytest
       - terraform-dev
-    if: needs.analyze-changes.outputs.code_changed == 'true'
+    if: needs.get-versions-changes.outputs.code_changed == 'true'
     runs-on: ubuntu-latest
     environment: gcp
     steps:
@@ -209,20 +223,23 @@ jobs:
       - name: Configure Docker for Artifact Registry
         run: gcloud auth configure-docker ${{ vars.GCP_REGION }}-docker.pkg.dev
 
-      - name: Build and Push Docker Image
+      - name: Set image tags
         run: |
           SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
-          FULL_IMAGE_TAG="${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/mlsys-dev/mlsys-dev:${SHORT_SHA}"
-          FULL_IMAGE_TAG_LATEST="${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/mlsys-dev/mlsys-dev:latest"
-          docker build -t $FULL_IMAGE_TAG -t $FULL_IMAGE_TAG_LATEST .
-          docker push $FULL_IMAGE_TAG
-          docker push $FULL_IMAGE_TAG_LATEST
           echo "SHORT_SHA=${SHORT_SHA}" >> $GITHUB_ENV
+          echo "IMAGE_TAG=${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/mlsys-dev/mlsys-dev:${SHORT_SHA}" >> $GITHUB_ENV
+          echo "IMAGE_TAG_LATEST=${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/mlsys-dev/mlsys-dev:latest" >> $GITHUB_ENV
+
+      - name: Build and Push Docker Image
+        run: |
+          docker build -t ${{ env.IMAGE_TAG }} -t ${{ env.IMAGE_TAG_LATEST }} .
+          docker push ${{ env.IMAGE_TAG }}
+          docker push ${{ env.IMAGE_TAG_LATEST }}
 
       - name: Deploy to Cloud Run
         run: |
           gcloud run deploy mlsys-dev \
-            --image="${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/mlsys-dev/mlsys-dev:${SHORT_SHA}" \
+            --image="${{ env.IMAGE_TAG }}" \
             --region=${{ vars.GCP_REGION }} \
             --platform=managed \
             --service-account=mlsys-sa-dev@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com \
