@@ -15,7 +15,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - CI/CD: GitHub Actions with smart change detection
 - Containerization: Docker multi-stage builds with uv
 
-**GCP Project**: `soufianesys` (single project, resources suffixed with `-dev`, `-staging`, `-prod`)
+**GCP Project**: `<your-gcp-project-id>` (single project, resources suffixed with `-dev`, `-staging`, `-prod`)
 
 ## Architecture
 
@@ -107,7 +107,7 @@ gh pr create --title "..." --body "..." # Create pull request
 - **Artifact Registry**: `mlsys-{env}`
 - **GCS Bucket**: `mlsys-models-{env}`
 - **BigQuery Dataset**: `mlsys_{env}` (note: underscore, not hyphen)
-- **Service Account**: `mlsys-sa-{env}@soufianesys.iam.gserviceaccount.com`
+- **Service Account**: `mlsys-sa-{env}@<your-gcp-project-id>.iam.gserviceaccount.com`
 
 ### Model Artifacts in GCS
 - **Path pattern**: `gs://mlsys-models-{env}/{model-name}/{version}/model.pkl`
@@ -117,38 +117,38 @@ gh pr create --title "..." --body "..." # Create pull request
 - **Optional metadata**: `gs://mlsys-models-dev/titanic-survival/v1/metadata.json`
 
 ### BigQuery Tables
-- **Model Registry**: `soufianesys.mlsys_{env}.model_registry`
+- **Model Registry**: `<your-gcp-project-id>.mlsys_{env}.model_registry`
 - **User tables**: Managed by data engineering team, full paths passed explicitly to endpoints
 
 ## GCP Resources
 
 ### Environments
-All resources exist in the same GCP project (`soufianesys`) but are suffixed by environment:
+All resources exist in the same GCP project (`<your-gcp-project-id>`) but are suffixed by environment:
 
 **dev**: Automatic deployment on PR merge to main
 - GCS bucket: `mlsys-models-dev`
 - Cloud Run Service: `mlsys-dev`
 - BigQuery dataset: `mlsys_dev`
-- Service account: `mlsys-sa-dev@soufianesys.iam.gserviceaccount.com`
+- Service account: `mlsys-sa-dev@<your-gcp-project-id>.iam.gserviceaccount.com`
 
 **staging**: Manual deployment for pre-production testing
 - GCS bucket: `mlsys-models-staging`
 - Cloud Run Service: `mlsys-staging`
 - BigQuery dataset: `mlsys_staging`
-- Service account: `mlsys-sa-staging@soufianesys.iam.gserviceaccount.com`
+- Service account: `mlsys-sa-staging@<your-gcp-project-id>.iam.gserviceaccount.com`
 
 **prod**: Manual deployment with confirmation
 - GCS bucket: `mlsys-models-prod`
 - Cloud Run Service: `mlsys-prod`
 - BigQuery dataset: `mlsys_prod`
-- Service account: `mlsys-sa-prod@soufianesys.iam.gserviceaccount.com`
+- Service account: `mlsys-sa-prod@<your-gcp-project-id>.iam.gserviceaccount.com`
 
 ### Environment Variables
 See `.env.example` for comprehensive template. Key variables:
 ```bash
 # GCP Configuration (set via GitHub secrets/variables - NOT committed)
-GCP_PROJECT_ID=soufianesys
-GCP_REGION=us-central1
+GCP_PROJECT_ID=<your-gcp-project-id>
+GCP_REGION=<your-gcp-region>
 
 # GCS Model Buckets (defaults provided in settings.py)
 GCS_BUCKET_MODELS_DEV=mlsys-models-dev
@@ -305,10 +305,10 @@ If only docs/tests change, workflow skips both Terraform and Docker steps.
 
 ### GitHub Secrets and Variables
 **Environment**: `gcp` (single environment for all deployments)
-- **Secret**: `GCP_SA_KEY` - GCP service account JSON key for `mlsys-github-actions@soufianesys.iam.gserviceaccount.com`  # pragma: allowlist secret
+- **Secret**: `GCP_SA_KEY` - GCP service account JSON key for `mlsys-github-actions@<your-gcp-project-id>.iam.gserviceaccount.com`  # pragma: allowlist secret
 - **Variables**:
-  - `GCP_PROJECT_ID` = `soufianesys`
-  - `GCP_REGION` = `us-central1`
+  - `GCP_PROJECT_ID` = `<your-gcp-project-id>`
+  - `GCP_REGION` = `<your-gcp-region>`
 
 ## Model Versioning
 
@@ -403,10 +403,10 @@ git commit -m "Add <package-name> dependency"
 ### Making Predictions
 ```bash
 # Dev environment
-curl "https://mlsys-dev-xxxxxx.run.app/predict?env=dev&input_table=soufianesys.titanic.test&output_table=soufianesys.titanic.predictions&model_name=titanic-survival&model_version=v1"
+curl "https://mlsys-dev-xxxxxx.run.app/predict?env=dev&input_table=<your-gcp-project-id>.titanic.test&output_table=<your-gcp-project-id>.titanic.predictions&model_name=titanic-survival&model_version=v1"
 
 # Prod environment
-curl "https://mlsys-prod-xxxxxx.run.app/predict?env=prod&input_table=soufianesys.titanic.test&output_table=soufianesys.titanic.predictions&model_name=titanic-survival&model_version=v1"
+curl "https://mlsys-prod-xxxxxx.run.app/predict?env=prod&input_table=<your-gcp-project-id>.titanic.test&output_table=<your-gcp-project-id>.titanic.predictions&model_name=titanic-survival&model_version=v1"
 ```
 
 ### Registering Models
