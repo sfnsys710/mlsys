@@ -36,8 +36,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Progressive Deployment Strategy
 ```
-dev (automatic on PR push) → staging (manual) → prod (manual with confirmation)
+dev (automatic on PR push) → staging (manual from main) → prod (manual from main)
 ```
+
+**Deployment strategy**:
+- **Dev**: Automatically deploys on every PR push (opened, synchronize, reopened)
+- **Staging**: Manual trigger only - After merging to main, manually trigger deployment from main branch
+- **Prod**: Manual trigger only - After merging to main, manually trigger deployment from main branch
+
+**How to deploy to staging/prod**:
+1. Merge your PR to the main branch
+2. Go to GitHub Actions → Select workflow (Staging/Production Deployment)
+3. Click "Run workflow" → Select branch: **main** → Click "Run workflow"
+
+**Versioning**: Update `version` in `pyproject.toml` before deploying to staging/prod. This version is used for Docker image tags (e.g., `0.2.0` → `mlsys-staging:0.2.0`, `mlsys-prod:0.2.0`).
 
 ### Deployment Flow
 ```
@@ -52,7 +64,7 @@ Jupyter → GCS Model Artifacts → Cloud Run Service (FastAPI)
 ```
 mlsys/
 ├── .github/
-│   └── workflows/           # CI/CD workflows (pr.yml)
+│   └── workflows/           # CI/CD workflows (pr.yml, staging.yml, prod.yml)
 ├── src/mlsys/               # Main Python package (managed by uv)
 │   ├── bq.py                # BigQuery I/O (bq_get, bq_put)
 │   ├── gcs.py               # GCS I/O (gcs_get, gcs_put, gcs_get_pickle, gcs_put_pickle, gcs_list_blobs)
@@ -290,20 +302,24 @@ Multi-stage build optimized for Cloud Run:
 
 ## CI/CD Architecture
 
-### GitHub Actions Workflow (`.github/workflows/pr.yml`)
+### GitHub Actions Workflows
+
+The project uses three CI/CD workflows for progressive deployment:
+
+#### 1. PR Workflow (`.github/workflows/pr.yml`)
 Unified workflow that auto-deploys to dev on PR events (opened, synchronize, reopened) targeting main:
 
 **Steps**:
 1. **Authorize**: Block external PRs (security check)
 2. **Analyze Changes**: Detect code vs. infrastructure changes
 3. **Pre-commit Checks**: Run all quality hooks (ruff, detect-secrets, nbstripout, etc.)
-4. **Terraform Operations**: Format, validate, plan for all environments
-5. **Conditional Deployment**:
+4. **Pytest**: Run all tests
+5. **Terraform Checks**: Format, validate, plan for all environments
+6. **Conditional Deployment to dev**:
    - If infra changed: Apply Terraform to dev
-   - If code changed: Build Docker image, push to Artifact Registry, deploy to Cloud Run dev
+   - If code changed: Build Docker image with commit SHA tag, push to Artifact Registry, deploy to Cloud Run dev
 
-### Smart Change Detection
-Avoids unnecessary operations by detecting what changed:
+**Smart Change Detection** - Avoids unnecessary operations by detecting what changed:
 
 **Infrastructure changes** (triggers Terraform apply):
 ```yaml
@@ -321,6 +337,46 @@ Dockerfile
 ```
 
 If only docs/tests change, workflow skips both Terraform and Docker steps.
+
+#### 2. Staging Workflow (`.github/workflows/staging.yml`)
+Deploys to staging via manual trigger only (must be triggered from main branch):
+
+**Trigger**:
+- Manual only via `workflow_dispatch` (GitHub Actions UI)
+- Must be triggered from `main` branch after merging changes
+
+**Steps**:
+1. **Extract Versions**: Get mlsys version from `pyproject.toml` and Terraform version from `.terraform-version`
+2. **Terraform**: Plan and apply for staging environment
+3. **Build & Deploy**: Build Docker with version-based tags, push to Artifact Registry, deploy to Cloud Run staging
+
+**Docker Image Tags**:
+- `mlsys-staging:{version}` (e.g., `mlsys-staging:0.2.0`)
+- `mlsys-staging:latest`
+
+**No Change Detection**: Always runs both Terraform and build/deploy when triggered
+
+**How to trigger**: Go to Actions → "Staging Deployment" → Run workflow → Select branch: **main**
+
+#### 3. Production Workflow (`.github/workflows/prod.yml`)
+Deploys to production via manual trigger only (must be triggered from main branch):
+
+**Trigger**:
+- Manual only via `workflow_dispatch` (GitHub Actions UI)
+- Must be triggered from `main` branch after merging changes
+
+**Steps**:
+1. **Extract Versions**: Get mlsys version from `pyproject.toml` and Terraform version from `.terraform-version`
+2. **Terraform**: Plan and apply for production environment
+3. **Build & Deploy**: Build Docker with version-based tags, push to Artifact Registry, deploy to Cloud Run production
+
+**Docker Image Tags**:
+- `mlsys-prod:{version}` (e.g., `mlsys-prod:0.2.0`)
+- `mlsys-prod:latest`
+
+**No Change Detection**: Always runs both Terraform and build/deploy when triggered
+
+**How to trigger**: Go to Actions → "Production Deployment" → Run workflow → Select branch: **main**
 
 ### GitHub Secrets and Variables
 **Environment**: `gcp` (single environment for all deployments)
@@ -549,7 +605,12 @@ def test_with_mock():
 2. **Create PR** - triggers Terraform format, validate, and plan for all environments
 3. **Review plan** in PR checks (GitHub Actions summary)
 4. **PR push** - auto-applies Terraform changes to dev environment on PR opened/synchronize/reopened
-5. **Manual promotion**: Manually run Terraform apply for staging, then prod (currently manual process)
+5. **Merge to main** - changes are now in main branch, ready for staging/prod deployment
+6. **Deploy to staging** - Manually trigger: Go to Actions → "Staging Deployment" → Run workflow on main branch
+7. **Test in staging** - Verify changes work correctly in staging environment
+8. **Deploy to production** - Manually trigger: Go to Actions → "Production Deployment" → Run workflow on main branch
+
+**Important**: Always deploy to staging first and test before deploying to production.
 
 ### Updating Dependencies
 ```bash
@@ -558,6 +619,31 @@ uv sync                     # Sync environment
 git add pyproject.toml uv.lock
 git commit -m "Add <package-name> dependency"
 ```
+
+### Versioning and Release Management
+The project uses semantic versioning defined in `pyproject.toml`. This version is used for Docker image tags in staging and production deployments.
+
+**When to bump the version**:
+- **Patch** (e.g., `0.2.0` → `0.2.1`): Bug fixes, minor updates
+- **Minor** (e.g., `0.2.0` → `0.3.0`): New features, backward-compatible changes
+- **Major** (e.g., `0.2.0` → `1.0.0`): Breaking changes, major refactoring
+
+**How to bump the version**:
+```bash
+# 1. Update version in pyproject.toml
+# Change: version = "0.2.0" to version = "0.3.0"
+
+# 2. Commit the version bump
+git add pyproject.toml
+git commit -m "Bump version to 0.3.0"
+
+# 3. Merge to main (triggers staging/prod deployments with new version tags)
+# Docker images will be tagged as:
+#   - mlsys-staging:0.3.0
+#   - mlsys-prod:0.3.0
+```
+
+**Best practice**: Bump the version before merging to main if the changes warrant a new release to staging/prod.
 
 ## Troubleshooting
 
