@@ -15,7 +15,7 @@ ML System for training models in Jupyter notebooks and deploying to GCP with HTT
 - CI/CD: GitHub Actions with smart change detection
 - Containers: Docker multi-stage builds
 
-**GCP Project**: `soufianesys` (single project, resources suffixed with `-dev`, `-staging`, `-prod`)
+**GCP Project**: `<your-gcp-project-id>` (single project, resources suffixed with `-dev`, `-staging`, `-prod`)
 
 ## Architecture
 
@@ -61,7 +61,7 @@ uv run jupyter lab
 
 ### Prerequisites
 
-- GCP Project created (e.g., `soufianesys`)
+- GCP Project created (e.g., `<your-gcp-project-id>`)
 - `gcloud` CLI installed and authenticated
 - Owner or Editor role on the GCP project
 - Terraform 1.10.0 installed
@@ -82,9 +82,9 @@ gcloud services enable iam.googleapis.com
 
 ```bash
 # Create state buckets
-gcloud storage buckets create gs://mlsys-terraform-state-dev --location=us-central1 --uniform-bucket-level-access
-gcloud storage buckets create gs://mlsys-terraform-state-staging --location=us-central1 --uniform-bucket-level-access
-gcloud storage buckets create gs://mlsys-terraform-state-prod --location=us-central1 --uniform-bucket-level-access
+gcloud storage buckets create gs://mlsys-terraform-state-dev --location=<your-gcp-region> --uniform-bucket-level-access
+gcloud storage buckets create gs://mlsys-terraform-state-staging --location=<your-gcp-region> --uniform-bucket-level-access
+gcloud storage buckets create gs://mlsys-terraform-state-prod --location=<your-gcp-region> --uniform-bucket-level-access
 
 # Enable versioning
 gcloud storage buckets update gs://mlsys-terraform-state-dev --versioning
@@ -100,13 +100,13 @@ gcloud iam service-accounts create github-actions \
   --display-name="GitHub Actions Service Account"
 
 # Grant necessary roles
-gcloud projects add-iam-policy-binding soufianesys \
-  --member="serviceAccount:github-actions@soufianesys.iam.gserviceaccount.com" \
+gcloud projects add-iam-policy-binding <your-gcp-project-id> \
+  --member="serviceAccount:github-actions@<your-gcp-project-id>.iam.gserviceaccount.com" \
   --role="roles/owner"
 
 # Generate key (store in GitHub Secrets as "SA")
 gcloud iam service-accounts keys create github-actions-key.json \
-  --iam-account=github-actions@soufianesys.iam.gserviceaccount.com
+  --iam-account=github-actions@<your-gcp-project-id>.iam.gserviceaccount.com
 ```
 
 ### 4. Configure GitHub Secrets and Variables
@@ -117,8 +117,8 @@ In your GitHub repository settings:
 - `SA`: Contents of `github-actions-key.json`
 
 **Variables** (Settings → Secrets and variables → Actions → Variables):
-- `GCP_PROJECT_ID`: Your GCP project ID (e.g., `soufianesys`)
-- `GCP_REGION`: Your GCP region (e.g., `us-central1`)
+- `GCP_PROJECT_ID`: Your GCP project ID (e.g., `<your-gcp-project-id>`)
+- `GCP_REGION`: Your GCP region (e.g., `<your-gcp-region>`)
 
 **Environment**: Create an environment named `gcp` in repository settings
 
@@ -128,7 +128,7 @@ In your GitHub repository settings:
 # Initialize and deploy dev environment
 cd infra/envs/dev
 terraform init -backend-config="bucket=mlsys-terraform-state-dev"
-terraform apply -var="project_id=soufianesys" -var="region=us-central1"
+terraform apply -var="project_id=<your-gcp-project-id>" -var="region=<your-gcp-region>"
 
 # Repeat for staging and prod as needed
 ```
@@ -148,7 +148,7 @@ from mlsys.settings import GCS_BUCKET_MODELS_DEV
 from sklearn.ensemble import RandomForestClassifier
 
 # Download data from BigQuery
-df = bq_get("SELECT * FROM soufianesys.titanic.train")
+df = bq_get("SELECT * FROM <your-gcp-project-id>.titanic.train")
 
 # Train model
 model = RandomForestClassifier()
@@ -187,7 +187,7 @@ Once PR is merged, your changes are automatically deployed to dev:
 curl "https://mlsys-dev-xxxxx.run.app/model-registry?env=dev"
 
 # Make predictions
-curl "https://mlsys-dev-xxxxx.run.app/predict?env=dev&input_table=soufianesys.titanic.test&output_table=soufianesys.titanic.predictions&model_name=titanic-survival&model_version=v1"
+curl "https://mlsys-dev-xxxxx.run.app/predict?env=dev&input_table=<your-gcp-project-id>.titanic.test&output_table=<your-gcp-project-id>.titanic.predictions&model_name=titanic-survival&model_version=v1"
 ```
 
 ### 4. Promote to Staging/Prod
@@ -195,7 +195,7 @@ curl "https://mlsys-dev-xxxxx.run.app/predict?env=dev&input_table=soufianesys.ti
 Currently manual - run Terraform and redeploy:
 ```bash
 cd infra/envs/staging
-terraform apply -var="project_id=soufianesys" -var="region=us-central1"
+terraform apply -var="project_id=<your-gcp-project-id>" -var="region=<your-gcp-region>"
 # Then rebuild and deploy Docker image with staging tag
 ```
 
@@ -250,8 +250,8 @@ uv run pre-commit run ruff --all-files       # Run specific hook
 ```bash
 cd infra/envs/dev
 terraform init -backend-config="bucket=mlsys-terraform-state-dev"
-terraform plan -var="project_id=soufianesys" -var="region=us-central1"
-terraform apply -var="project_id=soufianesys" -var="region=us-central1"
+terraform plan -var="project_id=<your-gcp-project-id>" -var="region=<your-gcp-region>"
+terraform apply -var="project_id=<your-gcp-project-id>" -var="region=<your-gcp-region>"
 terraform output                              # Show outputs
 ```
 
@@ -288,7 +288,7 @@ Make predictions on BigQuery data.
 
 **Example**:
 ```bash
-curl "https://mlsys-dev-xxxxx.run.app/predict?env=dev&input_table=soufianesys.titanic.test&output_table=soufianesys.titanic.predictions&model_name=titanic-survival&model_version=v1"
+curl "https://mlsys-dev-xxxxx.run.app/predict?env=dev&input_table=<your-gcp-project-id>.titanic.test&output_table=<your-gcp-project-id>.titanic.predictions&model_name=titanic-survival&model_version=v1"
 ```
 
 **What it does**:
@@ -333,7 +333,7 @@ curl "https://mlsys-dev-xxxxx.run.app/health"
 - **Artifact Registry**: `mlsys-{env}`
 - **GCS Bucket**: `mlsys-models-{env}`
 - **BigQuery Dataset**: `mlsys_{env}` (note: underscore, not hyphen)
-- **Service Account**: `mlsys-sa-{env}@soufianesys.iam.gserviceaccount.com`
+- **Service Account**: `mlsys-sa-{env}@<your-gcp-project-id>.iam.gserviceaccount.com`
 
 ### Model Artifacts in GCS
 - **Path pattern**: `{model-name}/v{version}/model.pkl`
@@ -406,8 +406,8 @@ The `mlsys` Terraform module creates per environment:
 # Dev environment
 cd infra/envs/dev
 terraform init -backend-config="bucket=mlsys-terraform-state-dev"
-terraform plan -var="project_id=soufianesys" -var="region=us-central1"
-terraform apply -var="project_id=soufianesys" -var="region=us-central1"
+terraform plan -var="project_id=<your-gcp-project-id>" -var="region=<your-gcp-region>"
+terraform apply -var="project_id=<your-gcp-project-id>" -var="region=<your-gcp-region>"
 
 # View outputs
 terraform output
@@ -463,8 +463,8 @@ Key variables (see `.env.example` for full template):
 
 ```bash
 # GCP Configuration
-GCP_PROJECT_ID=soufianesys
-GCP_REGION=us-central1
+GCP_PROJECT_ID=<your-gcp-project-id>
+GCP_REGION=<your-gcp-region>
 
 # GCS Model Buckets (defaults in settings.py)
 GCS_BUCKET_MODELS_DEV=mlsys-models-dev
