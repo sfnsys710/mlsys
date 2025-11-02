@@ -11,13 +11,13 @@ WORKDIR /app
 COPY uv.lock ./
 COPY pyproject.toml ./
 COPY README.md ./
-RUN uv sync --locked --no-install-project --no-dev
+RUN uv sync --locked --no-install-project --no-dev --group api
 
 # Install project now
 COPY src ./src
 COPY scripts ./scripts
 COPY api ./api
-RUN uv sync --locked --no-dev
+RUN uv sync --locked --no-dev --group api
 
 # Runtime stage: it is important to use same python version as in pyproject.toml and the builder
 FROM python:3.12-slim-bookworm
