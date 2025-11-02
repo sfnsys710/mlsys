@@ -772,6 +772,30 @@ uv run pytest --tb=long
 uv run pytest --no-cov -vv
 ```
 
+## Future Work & Roadmap
+
+### Scheduled Predictions
+Automated prediction pipelines using Cloud Scheduler, Cloud Workflows, or Cloud Composer for:
+- Daily batch predictions
+- Model retraining
+- Model registry updates
+- Performance monitoring
+
+### CI/CD Enhancements
+- **Docker build optimization**: Content-based hashing to skip redundant builds
+- Automated smoke tests after deployment
+- Canary and blue-green deployments
+
+### Model Management
+- **Generalized prediction pipeline**: Remove Titanic-specific hardcoding (see `scripts/predict.py:80-86`)
+- Model performance monitoring and drift detection
+- Automated model validation and lineage tracking
+
+### API Enhancements
+- Authentication and authorization (API keys, IAM)
+- Batch prediction API with async jobs
+- Model caching and prediction batching for better performance
+
 ## License
 
 MIT License
