@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Purpose**: ML system for training models in Jupyter notebooks and deploying to GCP with an HTTP prediction service.
+**Purpose**: ML system for training and deploying models on GCP
 
 **Key Technologies**:
 - Python 3.12 with uv package manager (fast, modern dependency management)
@@ -36,7 +36,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Progressive Deployment Strategy
 ```
-dev (automatic on PR merge) → staging (manual) → prod (manual with confirmation)
+dev (automatic on PR push) → staging (manual) → prod (manual with confirmation)
 ```
 
 ### Deployment Flow
@@ -91,15 +91,6 @@ uv run pre-commit run --all-files      # Run all hooks manually
 uv run pre-commit run ruff --all-files # Run specific hook
 ```
 
-### Git Workflow
-```bash
-git checkout -b <branch-name>          # Create feature branch
-git add .                              # Stage changes
-git commit -m "message"                # Commit (triggers pre-commit hooks)
-git push origin <branch-name>          # Push to remote
-gh pr create --title "..." --body "..." # Create pull request
-```
-
 ## Naming Conventions
 
 ### GCP Resources (per environment)
@@ -125,7 +116,7 @@ gh pr create --title "..." --body "..." # Create pull request
 ### Environments
 All resources exist in the same GCP project (`<your-gcp-project-id>`) but are suffixed by environment:
 
-**dev**: Automatic deployment on PR merge to main
+**dev**: Automatic deployment on PR push (opened, synchronize, reopened)
 - GCS bucket: `mlsys-models-dev`
 - Cloud Run Service: `mlsys-dev`
 - BigQuery dataset: `mlsys_dev`
@@ -147,7 +138,7 @@ All resources exist in the same GCP project (`<your-gcp-project-id>`) but are su
 See `.env.example` for comprehensive template. Key variables:
 ```bash
 # GCP Configuration (set via GitHub secrets/variables - NOT committed)
-GCP_PROJECT_ID=<your-gcp-project-id>
+GCP_PROJECT_ID=<your-gcp-project>
 GCP_REGION=<your-gcp-region>
 
 # GCS Model Buckets (defaults provided in settings.py)
@@ -155,8 +146,17 @@ GCS_BUCKET_MODELS_DEV=mlsys-models-dev
 GCS_BUCKET_MODELS_STAGING=mlsys-models-staging
 GCS_BUCKET_MODELS_PROD=mlsys-models-prod
 
-# Note: BigQuery table paths are passed explicitly to API endpoints
-# Example: GET /predict?env=dev&input_table=project.dataset.input&...
+# Terraform state buckets
+TF_STATE_BUCKET_DEV=mlsys-terraform-state-dev
+TF_STATE_BUCKET_STAGING=mlsys-terraform-state-staging
+TF_STATE_BUCKET_PROD=mlsys-terraform-state-prod
+
+# BigQuery dataset
+BQ_DATASET=mlsys
+
+# Note: BigQuery table paths are NOT configured here
+# They are passed explicitly to bq_get() and bq_put() functions
+# Example: bq_get("SELECT * FROM project.dataset.table")
 ```
 
 ## Code Style and Patterns
@@ -219,10 +219,10 @@ Core prediction pipeline (invoked by `/predict` endpoint):
 1. Pull data from BigQuery (using `bq_get()`)
 2. Load model from GCS (using `gcs_get_pickle()`)
 3. Make predictions with `.predict()` and `.predict_proba()`
-4. Add metadata columns: `PredictionTimestamp`, `ModelName`, `ModelVersion`
+4. Add metadata columns: `PredictionTimestamp`, `ModelName`, `ModelVersion`, `PredictionProbability`
 5. Push predictions to BigQuery (using `bq_put()` with `WRITE_APPEND`)
 
-**Note**: Currently hardcoded for Titanic model (expects `PassengerId`, produces `Survived`). Needs generalization for other models.
+**Note**: Currently hardcoded for Titanic model (expects `PassengerId`, produces `Survived` with prediction probability). See `scripts/predict.py:80-86` for implementation details. Needs generalization for other models.
 
 ### `scripts/model_registry.py` - Model Registration
 Scans GCS bucket and registers models in BigQuery (invoked by `/model-registry` endpoint):
@@ -272,7 +272,7 @@ Multi-stage build optimized for Cloud Run:
 ## CI/CD Architecture
 
 ### GitHub Actions Workflow (`.github/workflows/pr.yml`)
-Unified workflow that auto-deploys to dev on PR merge to main:
+Unified workflow that auto-deploys to dev on PR events (opened, synchronize, reopened) targeting main:
 
 **Steps**:
 1. **Authorize**: Block external PRs (security check)
@@ -321,17 +321,25 @@ If only docs/tests change, workflow skips both Terraform and Docker steps.
 
 ### BigQuery I/O
 - Always pass full table paths explicitly: `project.dataset.table`
-- Use `bq_get(query)` for reads (returns DataFrame)
-- Use `bq_put(df, table_id, write_disposition)` for writes
+- Use `bq_get(query: str) -> pd.DataFrame` for reads
+  - Executes SQL query and returns results as DataFrame
+  - Example: `df = bq_get("SELECT * FROM project.dataset.table LIMIT 10")`
+- Use `bq_put(df: pd.DataFrame, table_id: str, write_disposition: str = "WRITE_APPEND")` for writes
+  - Write dispositions: `WRITE_APPEND`, `WRITE_TRUNCATE`, `WRITE_EMPTY`
+  - Example: `bq_put(df, "project.dataset.table", "WRITE_TRUNCATE")`
 - Data engineering team manages table schemas and lifecycle
 
 ### GCS I/O
 - Model artifacts stored in versioned folders: `{model-name}/v{N}/model.pkl`
-- Use `gcs_get_pickle(bucket_name, blob_path)` for downloading pickled models
-- Use `gcs_put_pickle(obj, bucket_name, blob_path)` for uploading pickled models
-- Use `gcs_get(bucket_name, blob_path)` for raw bytes (e.g., `metadata.json`)
-- Use `gcs_put(bytes, bucket_name, blob_path)` for raw bytes
-- Use `gcs_list_blobs(bucket_name)` to list all objects
+- Use `gcs_get_pickle(bucket_name: str, blob_path: str) -> Any` for downloading pickled models
+  - Downloads and deserializes pickled objects
+  - Example: `model = gcs_get_pickle("mlsys-models-dev", "titanic-survival/v1/model.pkl")`
+- Use `gcs_put_pickle(obj: Any, bucket_name: str, blob_path: str)` for uploading pickled models
+  - Serializes and uploads objects using joblib
+  - Example: `gcs_put_pickle(model, "mlsys-models-dev", "titanic-survival/v1/model.pkl")`
+- Use `gcs_get(bucket_name: str, blob_path: str) -> bytes` for raw bytes (e.g., `metadata.json`)
+- Use `gcs_put(content: bytes | str, bucket_name: str, blob_path: str)` for uploading raw bytes/strings
+- Use `gcs_list_blobs(bucket_name: str) -> list[Blob]` to list all objects
 - Bucket names vary by environment: `mlsys-models-{env}`
 
 ### Notebook Development
@@ -363,7 +371,7 @@ If only docs/tests change, workflow skips both Terraform and Docker steps.
 1. **Make changes** in `infra/` directory (e.g., add BigQuery table, modify IAM)
 2. **Create PR** - triggers Terraform format, validate, and plan for all environments
 3. **Review plan** in PR checks (GitHub Actions summary)
-4. **Merge to main** - auto-applies Terraform changes to dev environment
+4. **PR push** - auto-applies Terraform changes to dev environment on PR opened/synchronize/reopened
 5. **Manual promotion**: Manually run Terraform apply for staging, then prod (currently manual process)
 
 ### Updating Dependencies
@@ -422,12 +430,3 @@ curl "https://mlsys-prod-xxxxxx.run.app/model-registry?env=prod"
 ```bash
 curl "https://mlsys-dev-xxxxxx.run.app/health"
 ```
-
-## References
-
-- [README.md](./README.md) - Project overview, setup instructions, quick start
-- [notebooks/README.md](./notebooks/README.md) - Comprehensive notebook development guide
-- [notebooks/titanic-survival-example.ipynb](./notebooks/titanic-survival-example.ipynb) - Complete example workflow
-- [pyproject.toml](./pyproject.toml) - Package configuration and dependencies
-- [.pre-commit-config.yaml](./.pre-commit-config.yaml) - Code quality hooks configuration
-- [.env.example](./.env.example) - Environment variable template
