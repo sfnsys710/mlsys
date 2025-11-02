@@ -186,6 +186,7 @@ jobs:
     needs:
       - analyze-changes
       - pre-commit
+      - terraform-dev
     if: needs.analyze-changes.outputs.code_changed == 'true'
     runs-on: ubuntu-latest
     environment: gcp
