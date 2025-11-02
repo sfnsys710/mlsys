@@ -122,6 +122,91 @@ uv run pytest -vv                  # Verbose output
 open htmlcov/index.html            # View coverage report (macOS)
 ```
 
+### Running Scripts Locally (CLI)
+
+The scripts in `scripts/` use [Python Fire](https://github.com/google/python-fire) to provide CLI interfaces. You can run them locally for testing or manual execution without going through the API.
+
+#### Prediction Script (`scripts/predict.py`)
+
+Run predictions locally using your local GCP credentials:
+
+```bash
+# Basic usage with named arguments
+uv run python scripts/predict.py \
+  --env=dev \
+  --input_table="<your-gcp-project-id>.titanic.test" \
+  --output_table="<your-gcp-project-id>.titanic.predictions" \
+  --model_name="titanic-survival" \
+  --model_version="v1"
+
+# Alternative Fire syntax (positional arguments)
+uv run python scripts/predict.py \
+  dev \
+  "<your-gcp-project-id>.titanic.test" \
+  "<your-gcp-project-id>.titanic.predictions" \
+  "titanic-survival" \
+  "v1"
+
+# Using different environments
+uv run python scripts/predict.py \
+  --env=staging \
+  --input_table="<your-gcp-project-id>.titanic.test" \
+  --output_table="<your-gcp-project-id>.titanic.predictions_staging" \
+  --model_name="titanic-survival" \
+  --model_version="v2"
+```
+
+#### Model Registry Script (`scripts/model_registry.py`)
+
+Scan GCS bucket and register models locally:
+
+```bash
+# Register models in dev environment
+uv run python scripts/model_registry.py --env=dev
+
+# Alternative Fire syntax (positional argument)
+uv run python scripts/model_registry.py dev
+
+# Register models in staging environment
+uv run python scripts/model_registry.py --env=staging
+
+# Register models in production environment
+uv run python scripts/model_registry.py --env=prod
+```
+
+#### Fire CLI Features
+
+Python Fire automatically provides several convenient features:
+
+```bash
+# Show help for any script
+uv run python scripts/predict.py --help
+uv run python scripts/model_registry.py --help
+
+# Show help for specific function
+uv run python scripts/predict.py -- --help
+
+# Use either --flag=value or --flag value syntax
+uv run python scripts/predict.py --env dev  # Both syntaxes work
+uv run python scripts/predict.py --env=dev
+```
+
+#### When to Use CLI vs API
+
+**Use CLI scripts when**:
+- Testing locally during development
+- Running one-off predictions or model registry updates
+- Debugging prediction pipelines with verbose logging
+- You have local GCP credentials configured (`gcloud auth application-default login`)
+- You want to iterate quickly without deploying to Cloud Run
+
+**Use API endpoints when**:
+- Running in production (Cloud Run Service)
+- Automating via HTTP requests from other services
+- Integrating with external systems
+- You want centralized logging and monitoring
+- You need authentication and access control
+
 ## Naming Conventions
 
 ### GCP Resources (per environment)
