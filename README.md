@@ -1,6 +1,4 @@
-# mlsys
-
-ML system for machine learning development and deployment on GCP
+# MLSys
 
 <!-- Cloud Infrastructure -->
 [![Google Cloud](https://img.shields.io/badge/Google%20Cloud-Platform-4285F4.svg?logo=google-cloud&logoColor=white)](https://cloud.google.com/)
@@ -27,6 +25,8 @@ ML system for machine learning development and deployment on GCP
 [![pandas](https://img.shields.io/badge/pandas-Data%20Analysis-150458.svg?logo=pandas&logoColor=white)](https://pandas.pydata.org/)
 [![NumPy](https://img.shields.io/badge/NumPy-Arrays-013243.svg?logo=numpy&logoColor=white)](https://numpy.org/)
 [![Matplotlib](https://img.shields.io/badge/Matplotlib-Visualization-11557c.svg)](https://matplotlib.org/)
+
+ML system for machine learning development and deployment on GCP
 
 ## Overview
 
