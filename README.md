@@ -2,20 +2,47 @@
 
 ML system for machine learning development and deployment on GCP
 
+<!-- Cloud Infrastructure -->
+[![Google Cloud](https://img.shields.io/badge/Google%20Cloud-Platform-4285F4.svg?logo=google-cloud&logoColor=white)](https://cloud.google.com/)
+[![IAM](https://img.shields.io/badge/IAM-Identity%20%26%20Access-4285F4.svg)](https://cloud.google.com/iam)
+[![BigQuery](https://img.shields.io/badge/BigQuery-Data%20Warehouse-4285F4.svg)](https://cloud.google.com/bigquery)
+[![Cloud Storage](https://img.shields.io/badge/Cloud%20Storage-GCS-4285F4.svg)](https://cloud.google.com/storage)
+[![Cloud Run](https://img.shields.io/badge/Cloud%20Run-Serverless-4285F4.svg)](https://cloud.google.com/run)
+[![Artifact Registry](https://img.shields.io/badge/Artifact%20Registry-Docker-4285F4.svg)](https://cloud.google.com/artifact-registry)
+
+<!-- Infrastructure & CI/CD -->
+[![Terraform](https://img.shields.io/badge/Terraform-1.10.0-7B42BC.svg?logo=terraform&logoColor=white)](https://www.terraform.io/)
+[![GitHub Actions](https://img.shields.io/badge/GitHub%20Actions-CI/CD-2088FF.svg?logo=github-actions&logoColor=white)](https://github.com/features/actions)
+[![Docker](https://img.shields.io/badge/Docker-multi--stage%20builds-2496ED.svg?logo=docker&logoColor=white)](https://www.docker.com/)
+
+<!-- Core Technologies -->
+[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg?logo=python&logoColor=white)](https://www.python.org/downloads/)
+[![uv](https://img.shields.io/badge/uv-package%20manager-purple.svg)](https://github.com/astral-sh/uv)
+[![FastAPI](https://img.shields.io/badge/FastAPI-HTTP%20endpoints-009688.svg?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![Jupyter](https://img.shields.io/badge/Jupyter-Notebooks-F37626.svg?logo=jupyter&logoColor=white)](https://jupyter.org/)
+[![pytest](https://img.shields.io/badge/pytest-Testing-0A9EDC.svg?logo=pytest&logoColor=white)](https://pytest.org/)
+
+<!-- ML Stack -->
+[![scikit-learn](https://img.shields.io/badge/scikit--learn-ML-F7931E.svg?logo=scikit-learn&logoColor=white)](https://scikit-learn.org/)
+[![pandas](https://img.shields.io/badge/pandas-Data%20Analysis-150458.svg?logo=pandas&logoColor=white)](https://pandas.pydata.org/)
+[![NumPy](https://img.shields.io/badge/NumPy-Arrays-013243.svg?logo=numpy&logoColor=white)](https://numpy.org/)
+[![Matplotlib](https://img.shields.io/badge/Matplotlib-Visualization-11557c.svg)](https://matplotlib.org/)
+
 ## Overview
 
 **Purpose**: End-to-end ML platform for developing models locally and deploying them as HTTP services on Google Cloud Platform.
 
-**Key Technologies**:
-- **Google Cloud Platform (GCP)**: BigQuery, Cloud Storage, Cloud Run Service, Artifact Registry
+**GCP Project**: `<your-gcp-project-id>` (single project, resources suffixed with `-dev`, `-staging`, `-prod`)
+
+## Key Technologies
+
+- **Google Cloud Platform (GCP)**: IAM, BigQuery, Cloud Storage, Cloud Run Service, Artifact Registry
 - **Infrastructure**: Terraform 1.10.0
 - **CI/CD**: GitHub Actions with smart change detection
 - **Containers**: Docker multi-stage builds
 - **Python** 3.12 with uv package manager (fast, modern dependency management)
 - **ML**: scikit-learn, pandas, numpy, matplotlib
 - **Web**: FastAPI (HTTP endpoints for predictions and model registry)
-
-**GCP Project**: `<your-gcp-project-id>` (single project, resources suffixed with `-dev`, `-staging`, `-prod`)
 
 ## Architecture
 
