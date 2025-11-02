@@ -62,6 +62,12 @@ resource "google_bigquery_table" "model_registry" {
       type        = "TIMESTAMP"
       mode        = "REQUIRED"
       description = "When the model was registered in this table"
+    },
+    {
+      name        = "metadata"
+      type        = "STRING"
+      mode        = "NULLABLE"
+      description = "Optional JSON metadata for the model"
     }
   ])
 
