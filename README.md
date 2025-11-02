@@ -297,6 +297,65 @@ uv run pre-commit run --all-files            # Run all hooks manually
 uv run pre-commit run ruff --all-files       # Run specific hook
 ```
 
+### Running Scripts Locally (CLI)
+
+The scripts in `scripts/` use [Python Fire](https://github.com/google/python-fire) to provide CLI interfaces. You can run them locally for testing or manual execution.
+
+#### Prediction Script
+
+```bash
+# Basic usage
+uv run python scripts/predict.py \
+  --env=dev \
+  --input_table="<your-gcp-project-id>.titanic.test" \
+  --output_table="<your-gcp-project-id>.titanic.predictions" \
+  --model_name="titanic-survival" \
+  --model_version="v1"
+
+# Using staging environment
+uv run python scripts/predict.py \
+  --env=staging \
+  ...
+```
+
+#### Model Registry Script
+
+```bash
+# Register models in dev environment
+uv run python scripts/model_registry.py --env=dev
+```
+
+#### Fire CLI Features
+
+Python Fire provides several convenient features:
+
+```bash
+# Show help for any script
+uv run python scripts/predict.py --help
+uv run python scripts/model_registry.py --help
+
+# Show help for specific function
+uv run python scripts/predict.py -- --help
+
+# Use either --flag=value or --flag value
+uv run python scripts/predict.py --env dev  # Both work
+uv run python scripts/predict.py --env=dev
+```
+
+#### When to Use CLI vs API
+
+**Use CLI scripts when**:
+- Testing locally during development
+- Running one-off predictions or model registry updates
+- Debugging prediction pipelines
+- You have local GCP credentials configured
+
+**Use API endpoints when**:
+- Running in production (Cloud Run Service)
+- Automating via HTTP requests
+- Integrating with other services
+- You want centralized logging and monitoring
+
 ### Versioning and Releases
 
 The project uses semantic versioning defined in `pyproject.toml`. This version is used for Docker image tags in staging and production deployments.
