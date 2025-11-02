@@ -63,6 +63,15 @@ mlsys/
 ├── scripts/                 # Production scripts (invoked by API)
 │   ├── predict.py           # Prediction pipeline (pull data, predict, push results)
 │   └── model_registry.py    # Model registration (scan GCS, register in BigQuery)
+├── tests/                   # Pytest test suite (52 tests)
+│   ├── conftest.py          # Shared fixtures and mocks
+│   ├── unit/                # Unit tests (36 tests)
+│   │   ├── test_bq.py       # BigQuery I/O tests
+│   │   ├── test_gcs.py      # GCS I/O tests
+│   │   ├── test_predict.py  # Prediction pipeline tests
+│   │   └── test_model_registry.py  # Model registry tests
+│   └── integration/         # Integration tests (16 tests)
+│       └── test_api.py      # FastAPI endpoint tests
 ├── infra/                   # Terraform infrastructure
 │   ├── modules/mlsys/       # Reusable infrastructure module
 │   └── envs/                # Environment-specific configs (dev, staging, prod)
@@ -89,6 +98,16 @@ uv run jupyter lab         # Launch Jupyter for notebooks
 uv run pre-commit install              # Install hooks (runs on git commit)
 uv run pre-commit run --all-files      # Run all hooks manually
 uv run pre-commit run ruff --all-files # Run specific hook
+```
+
+### Testing
+```bash
+uv run pytest                      # Run all tests with coverage
+uv run pytest -m unit              # Run only unit tests
+uv run pytest -m integration       # Run only integration tests
+uv run pytest --no-cov             # Run without coverage (faster)
+uv run pytest -vv                  # Verbose output
+open htmlcov/index.html            # View coverage report (macOS)
 ```
 
 ## Naming Conventions
@@ -350,10 +369,168 @@ If only docs/tests change, workflow skips both Terraform and Docker steps.
 - See `notebooks/titanic-survival-example.ipynb` for complete example workflow
 
 ### Testing
+- Run unit and integration tests before committing: `uv run pytest`
 - Pre-commit hooks run automatically on commit
 - Manual hook execution: `uv run pre-commit run --all-files`
 - Test in dev environment before promoting to staging
 - Always validate in staging before production deployment
+- See detailed testing documentation in the "Testing" section below
+
+## Testing
+
+### Test Structure
+
+The project uses pytest with two types of tests:
+
+**Unit Tests** (`tests/unit/`, 36 tests):
+- Test individual functions in isolation
+- Fast execution (< 1 second total)
+- Mock all external services (BigQuery, GCS)
+- Located in: `tests/unit/test_bq.py`, `tests/unit/test_gcs.py`, `tests/unit/test_predict.py`, `tests/unit/test_model_registry.py`
+- Marker: `@pytest.mark.unit`
+
+**Integration Tests** (`tests/integration/`, 16 tests):
+- Test how components work together
+- Verify FastAPI endpoints route to correct scripts
+- Ensure HTTP request/response contracts are correct
+- Located in: `tests/integration/test_api.py`
+- Marker: `@pytest.mark.integration`
+
+### Running Tests
+
+```bash
+# Run all tests with coverage report
+uv run pytest
+
+# Run only unit tests (fast)
+uv run pytest -m unit
+
+# Run only integration tests
+uv run pytest -m integration
+
+# Run without coverage (faster, easier debugging)
+uv run pytest --no-cov
+
+# Run with verbose output
+uv run pytest -vv
+
+# Run specific test file
+uv run pytest tests/unit/test_bq.py -v
+
+# Run specific test function
+uv run pytest tests/unit/test_bq.py::TestBqGet::test_bq_get_success -v
+
+# Show full traceback
+uv run pytest --tb=long
+```
+
+### Coverage Reports
+
+After running tests, view the HTML coverage report:
+
+```bash
+# macOS
+open htmlcov/index.html
+
+# Linux
+xdg-open htmlcov/index.html
+```
+
+The coverage report shows:
+- Line-by-line code coverage with visual highlights
+- Percentage coverage per file
+- Untested code paths highlighted in red
+- Note: `vis.py` is excluded (not deployed to production)
+
+### Fixtures and Mocks (`tests/conftest.py`)
+
+**Fixtures** provide reusable test data:
+- `sample_titanic_df`: Sample DataFrame for prediction tests
+- `sample_predictions`: Mock prediction results
+- `sample_prediction_probabilities`: Mock prediction probabilities
+- `mock_sklearn_model`: Serializable mock scikit-learn model
+- `pickled_model_bytes`: Serialized model for GCS tests
+- `mock_gcs_blob_list`: Mock GCS blobs for model registry tests
+
+**Mocks** simulate external services:
+- `mock_bq_client`: Mock BigQuery client (no API calls)
+- `mock_gcs_client`: Mock GCS client (no API calls)
+- `mock_settings`: Mock environment variables
+
+**Benefits**:
+- Consistent test data across all tests
+- No GCP credentials required for testing
+- Fast test execution (no network I/O)
+- Predictable results (no external dependencies)
+
+### Why We Test This Way
+
+**Unit Tests**:
+- Verify business logic correctness in isolation
+- Ensure functions handle edge cases properly
+- Test error handling and validation
+- Example: Test that `bq_put()` calls BigQuery API with correct parameters
+
+**Integration Tests**:
+- Verify components work together correctly
+- Test API endpoint routing and parameter validation
+- Ensure HTTP contracts are maintained
+- Example: Test that `/predict` endpoint validates query parameters and calls `predict()` function
+
+**Mocking Strategy**:
+- Mock BigQuery and GCS clients to avoid real API calls
+- Use `unittest.mock.patch` to replace clients during tests
+- Mock returns pre-defined data instead of querying actual services
+- Example: Mock BigQuery client returns pre-defined DataFrame instead of querying BigQuery
+
+### Test Coverage Goals
+
+- **Target**: 100% coverage of production code
+- **Current**: See coverage report with `open htmlcov/index.html`
+- **Excluded**: `vis.py` (not deployed to production), test files
+- **Priority**: All code in `src/mlsys/`, `api/`, and `scripts/` must be tested
+
+### Writing New Tests
+
+When adding new features, follow these patterns:
+
+**1. Add fixtures to `conftest.py` if needed**:
+```python
+@pytest.fixture
+def sample_new_data():
+    """Sample data for new feature."""
+    return pd.DataFrame({"col1": [1, 2, 3]})
+```
+
+**2. Write unit tests for new functions**:
+```python
+@pytest.mark.unit
+def test_new_function(mock_bq_client):
+    """Test new function with mocked dependencies."""
+    result = new_function(mock_bq_client)
+    assert result == expected_value
+```
+
+**3. Write integration tests for new endpoints**:
+```python
+@pytest.mark.integration
+def test_new_endpoint(client):
+    """Test new API endpoint."""
+    response = client.get("/new-endpoint?param=value")
+    assert response.status_code == 200
+```
+
+**4. Use mocks for external services**:
+```python
+from unittest.mock import patch
+
+@pytest.mark.unit
+def test_with_mock():
+    with patch("mlsys.bq.bigquery.Client") as mock_client:
+        mock_client.return_value = mock_bq_client
+        result = function_that_uses_bq()
+        assert result == expected
+```
 
 ## Common Workflows
 
@@ -405,6 +582,33 @@ git commit -m "Add <package-name> dependency"
 - Check `.terraform-version` matches CI/CD
 - Ensure GCP credentials are properly configured
 - Review Terraform plan before apply
+
+### Test Failures
+```bash
+# Run tests with verbose output
+uv run pytest -vv
+
+# Run specific test file
+uv run pytest tests/unit/test_bq.py -v
+
+# Run specific test function
+uv run pytest tests/unit/test_bq.py::TestBqGet::test_bq_get_success -v
+
+# Show full traceback
+uv run pytest --tb=long
+
+# Run without coverage (faster, easier debugging)
+uv run pytest --no-cov -vv
+
+# Clear pytest cache
+rm -rf .pytest_cache __pycache__ tests/__pycache__
+```
+
+**Common issues**:
+- **Import errors**: Ensure `uv sync --group test` was run
+- **Fixture not found**: Check `conftest.py` for fixture definitions
+- **Mock not working**: Verify patch path matches actual import path
+- **Coverage too low**: Run `open htmlcov/index.html` to see uncovered lines
 
 ## API Usage Examples
 
