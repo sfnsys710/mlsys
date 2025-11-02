@@ -54,7 +54,7 @@ dev (automatic on PR push) → staging (manual) → prod (manual)
 
 ```bash
 # 1. Install dependencies
-uv sync --group dev --group pre-commit
+uv sync --group dev --group pre-commit --group test
 
 # 2. Install pre-commit hooks
 uv run pre-commit install
@@ -62,6 +62,9 @@ uv run pre-commit install
 # 3. Set up environment variables
 cp .env.example .env
 # Edit .env with your GCP project details
+
+# 4. Verify setup by running tests
+uv run pytest
 ```
 
 ### 2. Create Terraform State Buckets
@@ -220,13 +223,22 @@ mlsys/
 ├── src/mlsys/               # Main Python package
 │   ├── bq.py                # BigQuery I/O (bq_get, bq_put)
 │   ├── gcs.py               # GCS I/O (gcs_get_pickle, gcs_put_pickle, gcs_list_blobs)
-│   ├── vis.py               # Visualization helpers
+│   ├── vis.py               # Visualization helpers (not in production)
 │   └── settings.py          # Configuration (loads from .env)
 ├── api/                     # FastAPI web service
 │   └── main.py              # HTTP endpoints: /predict, /model-registry, /health
 ├── scripts/                 # Production scripts (invoked by API)
 │   ├── predict.py           # Prediction pipeline
 │   └── model_registry.py    # Model registration
+├── tests/                   # Pytest test suite
+│   ├── conftest.py          # Shared fixtures and mocks
+│   ├── unit/                # Unit tests (36 tests)
+│   │   ├── test_bq.py       # BigQuery I/O tests
+│   │   ├── test_gcs.py      # GCS I/O tests
+│   │   ├── test_predict.py  # Prediction pipeline tests
+│   │   └── test_model_registry.py  # Model registry tests
+│   └── integration/         # Integration tests (16 tests)
+│       └── test_api.py      # FastAPI endpoint tests
 ├── notebooks/               # Jupyter notebooks for model development
 │   └── titanic-survival-example.ipynb
 ├── infra/                   # Terraform infrastructure
@@ -235,7 +247,7 @@ mlsys/
 ├── .github/workflows/       # CI/CD automation
 │   └── pr.yml               # PR checks and dev deployment
 ├── Dockerfile               # Multi-stage container for Cloud Run
-├── pyproject.toml           # Python dependencies (uv)
+├── pyproject.toml           # Python dependencies (uv), pre-commit hooks and pytest configs
 ├── .pre-commit-config.yaml  # Code quality hooks
 └── .env.example             # Environment variable template
 ```
@@ -246,7 +258,9 @@ mlsys/
 
 ```bash
 uv sync                          # Install/update dependencies
-uv add <package>                 # Add new dependency
+uv sync --group test             # Install test dependencies only
+uv add <package>                 # Add new dependency to main group
+uv add --group test <package>    # Add new test dependency
 uv run python script.py          # Run Python script
 ```
 
@@ -275,6 +289,55 @@ docker build -t mlsys:latest .
 docker run -p 8080:8080 mlsys:latest
 # Test: curl http://localhost:8080/health
 ```
+
+### Testing
+
+**Run all tests with coverage**:
+```bash
+uv run pytest                      # Run all tests
+uv run pytest -m unit              # Run only unit tests
+uv run pytest -m integration       # Run only integration tests
+uv run pytest --no-cov             # Run without coverage (faster)
+```
+
+**View coverage report**:
+```bash
+# macOS - Default browser
+open htmlcov/index.html
+```
+
+#### Why We Test This Way
+
+**Fixtures** (`conftest.py`):
+- Reusable test data (sample DataFrames, mock models)
+- Consistent test setup across all tests
+- Reduces code duplication
+- Example: `sample_titanic_df` fixture provides the same test data to all prediction tests
+
+**Mocks** (unittest.mock):
+- Simulate external services (BigQuery, GCS) without real API calls
+- Fast test execution (no network I/O)
+- No GCP credentials needed for testing
+- Predictable test results (no external dependencies)
+- Example: Mock BigQuery client returns pre-defined DataFrame instead of querying actual BigQuery
+
+**Unit Tests** (`@pytest.mark.unit`):
+- Test individual functions in isolation
+- Fast execution (< 1 second total)
+- Verify business logic correctness
+- Example: Test that `bq_put()` calls BigQuery API with correct parameters
+
+**Integration Tests** (`@pytest.mark.integration`):
+- Test how components work together
+- Verify FastAPI endpoints route to correct scripts
+- Ensure HTTP request/response contracts are correct
+- Example: Test that `/predict` endpoint validates query parameters and calls `predict()` function
+
+**Coverage Reports**:
+- Identify untested code paths
+- Ensure production code has test coverage
+- HTML report shows line-by-line coverage with visual highlights
+- Note: `vis.py` is excluded (not deployed to production)
 
 ## API Endpoints
 
@@ -519,9 +582,16 @@ BQ_DATASET=mlsys
 - See `notebooks/titanic-survival-example.ipynb` for complete example
 
 ### Testing
-- Pre-commit hooks run automatically on commit
-- Manual: `uv run pre-commit run --all-files`
-- Test in dev before promoting to staging/prod
+- **Unit and integration tests**: Run `uv run pytest` before committing changes
+- **Pre-commit hooks**: Run automatically on commit
+- **Manual checks**: `uv run pre-commit run --all-files`
+- **Coverage**: View HTML report with `open htmlcov/index.html`
+- **Deployment testing**: Always test in dev environment before promoting to staging/prod
+- **Test philosophy**:
+  - Write tests for all production code (scripts/, src/mlsys/, api/)
+  - Use fixtures for reusable test data
+  - Mock external services (BigQuery, GCS) to avoid API calls
+  - Aim for 100% coverage of production code
 
 ## Troubleshooting
 
@@ -545,6 +615,24 @@ terraform init -reconfigure -backend-config="bucket=mlsys-terraform-state-dev"
 
 # Upgrade providers
 terraform init -upgrade
+```
+
+### Test Failures
+```bash
+# Run tests with verbose output
+uv run pytest -vv
+
+# Run specific test file
+uv run pytest tests/unit/test_bq.py -v
+
+# Run specific test function
+uv run pytest tests/unit/test_bq.py::TestBqGet::test_bq_get_success -v
+
+# Show full traceback
+uv run pytest --tb=long
+
+# Run without coverage (faster, easier debugging)
+uv run pytest --no-cov -vv
 ```
 
 ## License
