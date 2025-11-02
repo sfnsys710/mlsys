@@ -32,6 +32,13 @@ dev = [
 pre-commit = [
     "pre-commit>=4.3.0",
 ]
+test = [
+    "pytest>=8.0.0",
+    "pytest-cov>=6.0.0",
+    "pytest-mock>=3.14.0",
+    "pytest-asyncio>=0.24.0",
+    "httpx>=0.28.0",
+]
 
 [tool.ruff]
 line-length = 100
@@ -52,3 +59,46 @@ ignore = []
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]                       # Where pytest looks for tests
+python_files = "test_*.py"                  # Test file naming pattern
+python_classes = "Test*"                    # Test class naming pattern
+python_functions = "test_*"                 # Test function naming pattern
+addopts = [
+    "-v",                                   # Verbose output (show each test name)
+    "--strict-markers",                     # Fail on unknown markers (prevents typos)
+    "--cov=src/mlsys",                      # Track coverage for main package
+    "--cov=scripts",                        # Track coverage for production scripts
+    "--cov=api",                            # Track coverage for FastAPI endpoints
+    "--cov-report=html:htmlcov",            # Generate HTML report in htmlcov/
+    "--cov-report=term-missing",            # Show missing lines in terminal
+]
+markers = [
+    "unit: Unit tests",                     # Use with: pytest -m unit
+    "integration: Integration tests",       # Use with: pytest -m integration
+]
+
+[tool.coverage.run]
+source = ["src/mlsys", "scripts", "api"]    # Directories to measure coverage for
+omit = [
+    "tests/*",                              # Don't measure test code itself
+    "**/__pycache__/*",                     # Skip compiled Python files
+    "**/conftest.py",                       # Skip pytest configuration
+    "src/mlsys/vis.py",                     # Skip vis.py (not deployed to production)
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",                     # Explicit exclusion marker
+    "def __repr__",                         # String representation methods
+    "raise AssertionError",                 # Unreachable assertion errors
+    "raise NotImplementedError",            # Abstract method placeholders
+    "if __name__ == .__main__.:",           # Script entry points
+    "if TYPE_CHECKING:",                    # Type checking blocks
+]
+precision = 2                               # Decimal places for coverage percentage
+show_missing = true                         # Show line numbers of missing coverage
+
+[tool.coverage.html]
+directory = "htmlcov"                       # Output directory for HTML report
