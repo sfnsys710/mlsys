@@ -28,7 +28,7 @@ ML system for machine learning development and deployment on GCP
 [![NumPy](https://img.shields.io/badge/NumPy-Arrays-013243.svg?logo=numpy&logoColor=white)](https://numpy.org/)
 [![Matplotlib](https://img.shields.io/badge/Matplotlib-Visualization-11557c.svg)](https://matplotlib.org/)
 
-https://github.com/user-attachments/assets/09d40e0b-645d-4977-88ec-6bf417e5d861
+https://github.com/user-attachments/assets/ed9187c4-5c1e-4208-ad62-d5c9e6695602
 
 ## Overview
 
