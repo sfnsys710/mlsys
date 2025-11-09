@@ -1,5 +1,7 @@
 # MLSys
 
+ML system for machine learning development and deployment on GCP
+
 <!-- Cloud Infrastructure -->
 [![Google Cloud](https://img.shields.io/badge/Google%20Cloud-Platform-4285F4.svg?logo=google-cloud&logoColor=white)](https://cloud.google.com/)
 [![IAM](https://img.shields.io/badge/IAM-Identity%20%26%20Access-4285F4.svg)](https://cloud.google.com/iam)
@@ -26,7 +28,7 @@
 [![NumPy](https://img.shields.io/badge/NumPy-Arrays-013243.svg?logo=numpy&logoColor=white)](https://numpy.org/)
 [![Matplotlib](https://img.shields.io/badge/Matplotlib-Visualization-11557c.svg)](https://matplotlib.org/)
 
-ML system for machine learning development and deployment on GCP
+https://github.com/user-attachments/assets/09d40e0b-645d-4977-88ec-6bf417e5d861
 
 ## Overview
 
